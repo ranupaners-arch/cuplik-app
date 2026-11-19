@@ -6,6 +6,313 @@
     "version": "0.1.0"
   },
   "paths": {
+    "/api/projects/{project_id}/annotations/{mode}": {
+      "get": {
+        "tags": [
+          "evaluation"
+        ],
+        "summary": "Read Annotation",
+        "operationId": "read_annotation_api_projects__project_id__annotations__mode__get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "mode",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "enum": [
+                "clips",
+                "condense"
+              ],
+              "type": "string",
+              "title": "Mode"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnnotationView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "evaluation"
+        ],
+        "summary": "Save Annotation",
+        "operationId": "save_annotation_api_projects__project_id__annotations__mode__put",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "mode",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "enum": [
+                "clips",
+                "condense"
+              ],
+              "type": "string",
+              "title": "Mode"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnnotationSave"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnnotationView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{project_id}/source": {
+      "get": {
+        "tags": [
+          "evaluation"
+        ],
+        "summary": "Source File",
+        "operationId": "source_file_api_projects__project_id__source_get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{project_id}/prepare-source": {
+      "post": {
+        "tags": [
+          "evaluation"
+        ],
+        "summary": "Prepare Source",
+        "operationId": "prepare_source_api_projects__project_id__prepare_source_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{project_id}/transcript.vtt": {
+      "get": {
+        "tags": [
+          "evaluation"
+        ],
+        "summary": "Transcript Track",
+        "operationId": "transcript_track_api_projects__project_id__transcript_vtt_get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{project_id}/annotations/{mode}/export.zip": {
+      "get": {
+        "tags": [
+          "evaluation"
+        ],
+        "summary": "Export Annotation",
+        "operationId": "export_annotation_api_projects__project_id__annotations__mode__export_zip_get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "mode",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "enum": [
+                "clips",
+                "condense"
+              ],
+              "type": "string",
+              "title": "Mode"
+            }
+          },
+          {
+            "name": "output_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Output Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/health": {
       "get": {
         "summary": "Health",
@@ -1374,10 +1681,384 @@
           }
         }
       }
+    },
+    "/api/outputs/{output_id}/chapters": {
+      "get": {
+        "summary": "Chapter Export",
+        "operationId": "chapter_export_api_outputs__output_id__chapters_get",
+        "parameters": [
+          {
+            "name": "output_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Output Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChapterExport"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/outputs/{output_id}/vision": {
+      "get": {
+        "summary": "Vision Report",
+        "operationId": "vision_report_api_outputs__output_id__vision_get",
+        "parameters": [
+          {
+            "name": "output_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Output Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VisionReport"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/outputs/{output_id}/vision/frames/{frame_id}": {
+      "get": {
+        "summary": "Vision Frame",
+        "operationId": "vision_frame_api_outputs__output_id__vision_frames__frame_id__get",
+        "parameters": [
+          {
+            "name": "output_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Output Id"
+            }
+          },
+          {
+            "name": "frame_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Frame Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/outputs/{output_id}/chapters.txt": {
+      "get": {
+        "summary": "Chapter File",
+        "operationId": "chapter_file_api_outputs__output_id__chapters_txt_get",
+        "parameters": [
+          {
+            "name": "output_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Output Id"
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "index",
+                "youtube"
+              ],
+              "type": "string",
+              "default": "index",
+              "title": "Format"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
     "schemas": {
+      "AnnotationDocument": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "reviewed"
+            ],
+            "title": "Status",
+            "default": "draft"
+          },
+          "annotator": {
+            "type": "string",
+            "maxLength": 120,
+            "title": "Annotator",
+            "default": ""
+          },
+          "independent": {
+            "type": "boolean",
+            "title": "Independent",
+            "default": true
+          },
+          "review_confirmed": {
+            "type": "boolean",
+            "title": "Review Confirmed",
+            "default": false
+          },
+          "settings": {
+            "$ref": "#/components/schemas/OutputSettings"
+          },
+          "ranges": {
+            "items": {
+              "$ref": "#/components/schemas/AnnotationRange"
+            },
+            "type": "array",
+            "maxItems": 100,
+            "title": "Ranges"
+          },
+          "required_chapters": {
+            "items": {
+              "$ref": "#/components/schemas/AnnotationRange"
+            },
+            "type": "array",
+            "maxItems": 100,
+            "title": "Required Chapters"
+          },
+          "required_specs": {
+            "items": {
+              "$ref": "#/components/schemas/AnnotationRange"
+            },
+            "type": "array",
+            "maxItems": 100,
+            "title": "Required Specs"
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 4000,
+            "title": "Note",
+            "default": ""
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "AnnotationDocument"
+      },
+      "AnnotationRange": {
+        "properties": {
+          "start_s": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Start S"
+          },
+          "end_s": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "End S"
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 300,
+            "title": "Label",
+            "default": ""
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "start_s",
+          "end_s"
+        ],
+        "title": "AnnotationRange"
+      },
+      "AnnotationSave": {
+        "properties": {
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Expected Revision"
+          },
+          "source_fingerprint": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Source Fingerprint"
+          },
+          "transcript_fingerprint": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Transcript Fingerprint"
+          },
+          "document": {
+            "$ref": "#/components/schemas/AnnotationDocument"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "expected_revision",
+          "source_fingerprint",
+          "transcript_fingerprint",
+          "document"
+        ],
+        "title": "AnnotationSave"
+      },
+      "AnnotationView": {
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "title": "Project Id"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "clips",
+              "condense"
+            ],
+            "title": "Mode"
+          },
+          "revision": {
+            "type": "integer",
+            "title": "Revision"
+          },
+          "document": {
+            "$ref": "#/components/schemas/AnnotationDocument"
+          },
+          "dataset_kind": {
+            "type": "string",
+            "enum": [
+              "human",
+              "synthetic"
+            ],
+            "title": "Dataset Kind"
+          },
+          "independent": {
+            "type": "boolean",
+            "title": "Independent"
+          },
+          "predictions_exist": {
+            "type": "boolean",
+            "title": "Predictions Exist"
+          },
+          "stale": {
+            "type": "boolean",
+            "title": "Stale"
+          },
+          "source_fingerprint": {
+            "type": "string",
+            "title": "Source Fingerprint"
+          },
+          "transcript_fingerprint": {
+            "type": "string",
+            "title": "Transcript Fingerprint"
+          },
+          "duration_s": {
+            "type": "number",
+            "title": "Duration S"
+          },
+          "language": {
+            "type": "string",
+            "title": "Language"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "project_id",
+          "mode",
+          "revision",
+          "document",
+          "dataset_kind",
+          "independent",
+          "predictions_exist",
+          "stale",
+          "source_fingerprint",
+          "transcript_fingerprint",
+          "duration_s",
+          "language"
+        ],
+        "title": "AnnotationView"
+      },
       "Beat": {
         "properties": {
           "id": {
@@ -1417,6 +2098,11 @@
             "type": "string",
             "title": "Visual Desc",
             "default": ""
+          },
+          "evidence": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Evidence"
           },
           "label": {
             "type": "string",
@@ -1557,6 +2243,106 @@
         ],
         "title": "ChapterChoice"
       },
+      "ChapterExport": {
+        "properties": {
+          "version": {
+            "type": "integer",
+            "title": "Version",
+            "default": 1
+          },
+          "timing_source": {
+            "type": "string",
+            "enum": [
+              "encoded_parts",
+              "legacy_plan"
+            ],
+            "title": "Timing Source"
+          },
+          "duration_s": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Duration S"
+          },
+          "chapters": {
+            "items": {
+              "$ref": "#/components/schemas/ChapterMarker"
+            },
+            "type": "array",
+            "title": "Chapters"
+          },
+          "youtube_valid": {
+            "type": "boolean",
+            "title": "Youtube Valid",
+            "default": false
+          },
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Reasons"
+          },
+          "index_text": {
+            "type": "string",
+            "title": "Index Text",
+            "default": ""
+          },
+          "youtube_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Youtube Text"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "timing_source",
+          "duration_s"
+        ],
+        "title": "ChapterExport"
+      },
+      "ChapterMarker": {
+        "properties": {
+          "chapter_id": {
+            "type": "string",
+            "title": "Chapter Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "start_s": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Start S"
+          },
+          "end_s": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "End S"
+          },
+          "timestamp": {
+            "type": "string",
+            "title": "Timestamp"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "chapter_id",
+          "title",
+          "start_s",
+          "end_s",
+          "timestamp"
+        ],
+        "title": "ChapterMarker"
+      },
       "ClipPatch": {
         "properties": {
           "title_choice": {
@@ -1672,6 +2458,16 @@
             "anyOf": [
               {
                 "$ref": "#/components/schemas/RetentionSettings"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "visual_focus": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VisualFocus"
               },
               {
                 "type": "null"
@@ -1846,6 +2642,11 @@
             "type": "object",
             "title": "Retention"
           },
+          "visual_focus": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Visual Focus"
+          },
           "rating": {
             "anyOf": [
               {
@@ -1931,12 +2732,74 @@
           "platform",
           "layout",
           "retention",
+          "visual_focus",
           "rating",
           "rating_note",
           "render_fingerprint",
           "qc"
         ],
         "title": "ClipView"
+      },
+      "CondenseVisionSettings": {
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled",
+            "default": false
+          },
+          "screen_tutorial": {
+            "type": "boolean",
+            "title": "Screen Tutorial",
+            "default": false
+          },
+          "max_frames": {
+            "type": "integer",
+            "maximum": 4096.0,
+            "minimum": 16.0,
+            "title": "Max Frames",
+            "default": 720
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "CondenseVisionSettings"
+      },
+      "FocusRegion": {
+        "properties": {
+          "x": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "X"
+          },
+          "y": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Y"
+          },
+          "width": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.1,
+            "title": "Width"
+          },
+          "height": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.1,
+            "title": "Height"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "x",
+          "y",
+          "width",
+          "height"
+        ],
+        "title": "FocusRegion"
       },
       "GlossaryCreate": {
         "properties": {
@@ -2038,6 +2901,11 @@
             "additionalProperties": true,
             "type": "object",
             "title": "Settings"
+          },
+          "provenance": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Provenance"
           },
           "status": {
             "type": "string",
@@ -2169,6 +3037,26 @@
                 "type": "null"
               }
             ]
+          },
+          "chapter_export": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ChapterExport"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "vision_report": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VisionReport"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -2284,6 +3172,12 @@
           },
           "retention": {
             "$ref": "#/components/schemas/RetentionSettings"
+          },
+          "visual_focus": {
+            "$ref": "#/components/schemas/VisualFocus"
+          },
+          "condense_vision": {
+            "$ref": "#/components/schemas/CondenseVisionSettings"
           }
         },
         "additionalProperties": false,
@@ -2370,6 +3264,12 @@
           },
           "retention": {
             "$ref": "#/components/schemas/RetentionSettings"
+          },
+          "visual_focus": {
+            "$ref": "#/components/schemas/VisualFocus"
+          },
+          "condense_vision": {
+            "$ref": "#/components/schemas/CondenseVisionSettings"
           }
         },
         "additionalProperties": false,
@@ -3024,6 +3924,199 @@
           "type"
         ],
         "title": "ValidationError"
+      },
+      "VisionFrame": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^f[0-9]+$",
+            "title": "Id"
+          },
+          "action": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Action"
+          },
+          "screen_text": {
+            "type": "string",
+            "maxLength": 1000,
+            "title": "Screen Text",
+            "default": ""
+          },
+          "result": {
+            "type": "boolean",
+            "title": "Result",
+            "default": false
+          },
+          "idle": {
+            "type": "boolean",
+            "title": "Idle",
+            "default": false
+          },
+          "uncertain": {
+            "type": "boolean",
+            "title": "Uncertain",
+            "default": true
+          },
+          "hands_visible": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hands Visible"
+          },
+          "objects": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 12,
+            "title": "Objects"
+          },
+          "beat_id": {
+            "type": "string",
+            "title": "Beat Id"
+          },
+          "time_s": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Time S"
+          },
+          "width": {
+            "type": "integer",
+            "maximum": 1024.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Width"
+          },
+          "height": {
+            "type": "integer",
+            "maximum": 1024.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Height"
+          },
+          "image_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Image Sha256"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "action",
+          "beat_id",
+          "time_s",
+          "width",
+          "height",
+          "image_sha256",
+          "url"
+        ],
+        "title": "VisionFrame"
+      },
+      "VisionReport": {
+        "properties": {
+          "version": {
+            "type": "integer",
+            "title": "Version",
+            "default": 1
+          },
+          "provider": {
+            "type": "string",
+            "title": "Provider"
+          },
+          "vision_model": {
+            "type": "string",
+            "title": "Vision Model"
+          },
+          "source_sha256": {
+            "type": "string",
+            "title": "Source Sha256"
+          },
+          "transcript_sha256": {
+            "type": "string",
+            "title": "Transcript Sha256"
+          },
+          "speech_beats": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Speech Beats"
+          },
+          "visual_beats": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Visual Beats"
+          },
+          "frame_count": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Frame Count"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Notes"
+          },
+          "frames": {
+            "items": {
+              "$ref": "#/components/schemas/VisionFrame"
+            },
+            "type": "array",
+            "title": "Frames"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "provider",
+          "vision_model",
+          "source_sha256",
+          "transcript_sha256",
+          "speech_beats",
+          "visual_beats",
+          "frame_count",
+          "notes",
+          "frames"
+        ],
+        "title": "VisionReport"
+      },
+      "VisualFocus": {
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "safe",
+              "activity",
+              "manual"
+            ],
+            "title": "Mode",
+            "default": "safe"
+          },
+          "region": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FocusRegion"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "VisualFocus"
       },
       "Word": {
         "properties": {

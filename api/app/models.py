@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from sqlalchemy import JSON, Column, DateTime, Float, String
+from sqlalchemy import JSON, Column, DateTime, Float, String, UniqueConstraint
 from sqlmodel import Field, SQLModel
 
 
@@ -50,6 +50,9 @@ class Output(SQLModel, table=True):
     project_id: str = Field(foreign_key="project.id", index=True)
     mode: str
     settings: dict = Field(default_factory=dict, sa_column=Column(JSON, nullable=False))
+    provenance: dict = Field(
+        default_factory=dict, sa_column=Column(JSON, nullable=False, server_default="{}")
+    )
     status: str = "queued"
     stage: str = "queued"
     progress: float = 0
@@ -107,6 +110,9 @@ class Clip(SQLModel, table=True):
     platform: str = Field(
         default="youtube", sa_column=Column(String, nullable=False, server_default="youtube")
     )
+    visual_focus: dict = Field(
+        default_factory=dict, sa_column=Column(JSON, nullable=False, server_default="{}")
+    )
     rating: str | None = None
     rating_note: str = ""
     file_path: str | None = None
@@ -138,6 +144,9 @@ class Beat(SQLModel, table=True):
     )
     visual_desc: str = Field(
         default="", sa_column=Column(String, nullable=False, server_default="")
+    )
+    evidence: dict = Field(
+        default_factory=dict, sa_column=Column(JSON, nullable=False, server_default="{}")
     )
     label: str = Field(
         default="step", sa_column=Column(String, nullable=False, server_default="step")
@@ -196,5 +205,20 @@ class Task(SQLModel, table=True):
     rq_job_id: str = Field(default_factory=new_id)
     attempts: int = 0
     error: str | None = None
+    created_at: datetime = Field(default_factory=now)
+    updated_at: datetime = Field(default_factory=now)
+
+
+class Annotation(SQLModel, table=True):
+    __table_args__ = (UniqueConstraint("project_id", "mode", name="uq_annotation_project_mode"),)
+    id: str = Field(default_factory=new_id, primary_key=True)
+    project_id: str = Field(foreign_key="project.id", index=True)
+    mode: str
+    revision: int = 1
+    document: dict = Field(default_factory=dict, sa_column=Column(JSON, nullable=False))
+    dataset_kind: str
+    independent: bool = False
+    source_fingerprint: str
+    transcript_fingerprint: str
     created_at: datetime = Field(default_factory=now)
     updated_at: datetime = Field(default_factory=now)

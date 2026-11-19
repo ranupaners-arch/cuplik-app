@@ -25,15 +25,33 @@ def main():
     )
     parser.add_argument("--caption-preset", choices=["compact", "karaoke"], default="compact")
     parser.add_argument("--limit", type=int, default=3)
+    parser.add_argument("--focus-mode", choices=["safe", "activity", "manual"], default="safe")
+    parser.add_argument(
+        "--focus-region", type=float, nargs=4, metavar=("X", "Y", "WIDTH", "HEIGHT")
+    )
     args = parser.parse_args()
     os.environ["RENDER_HEIGHT"] = str(args.height)
     from api.app.config import get_settings
     from api.app.models import Clip
-    from api.app.schemas import OutputSettings, Transcript, retention_profile
+    from api.app.schemas import (
+        FocusRegion,
+        OutputSettings,
+        Transcript,
+        VisualFocus,
+        retention_profile,
+    )
     from worker.pipeline.render import render_clip
 
     get_settings.cache_clear()
-    OutputSettings(purpose=args.purpose, platform=args.platform, layout=args.layout)
+    region = (
+        FocusRegion(**dict(zip(("x", "y", "width", "height"), args.focus_region, strict=True)))
+        if args.focus_region
+        else None
+    )
+    focus = VisualFocus(mode=args.focus_mode, region=region)
+    OutputSettings(
+        purpose=args.purpose, platform=args.platform, layout=args.layout, visual_focus=focus
+    )
     started = time.monotonic()
     transcript = Transcript.model_validate_json(args.transcript.read_text())
     selection = json.loads(args.selection.read_text())
@@ -68,6 +86,7 @@ def main():
                 "cold_open": args.cold_open,
             },
             layout=args.layout,
+            visual_focus=focus.model_dump(),
         )
         path, qc = render_clip(args.source.resolve(), clip, transcript, args.directory.resolve())
         destination = args.directory / f"clip-{rank}.mp4"
@@ -94,6 +113,7 @@ def main():
         "layout": args.layout,
         "purpose": args.purpose,
         "platform": args.platform,
+        "visual_focus": focus.model_dump(),
         "llm_called": False,
         "asr_called": False,
         "clips": result,

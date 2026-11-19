@@ -37,7 +37,9 @@ class Tracker:
     def __init__(self, plan: FramingPlan):
         self.plan = plan
         self.detector = None
-        if plan.content_kind == "speaker" or plan.mode == "subject_portrait":
+        if plan.mode != "region_focus" and (
+            plan.content_kind == "speaker" or plan.mode == "subject_portrait"
+        ):
             model = (
                 Path(__file__).resolve().parents[1]
                 / "assets/yunet/face_detection_yunet_2026may.onnx"
@@ -50,6 +52,7 @@ class Tracker:
         self.detected_faces = []
         self.frames = 0
         self.detections = 0
+        self.focus_lost = False
 
     def detect(self, image):
         if self.detector is None:
@@ -76,6 +79,8 @@ class Tracker:
         scene_cut = bool(self.scene.process_frame(FrameTimecode(index, 30.0), small)) or reset
         if scene_cut:
             self.target, self.center, self.last_seen = None, None, None
+            if index > 0 and self.plan.focus.get("requested") == "activity":
+                self.focus_lost = True
         if index % 3 == 0 or scene_cut:
             faces = self.detect(small)
             self.detected_faces = faces
@@ -107,6 +112,8 @@ class Tracker:
             if self.plan.mode == "portrait_fit" or (self.plan.mode == "subject_portrait" and lost)
             else self.plan.mode
         )
+        if self.focus_lost:
+            mode = "blur_fit" if self.plan.width < self.plan.height else "source"
         return {
             "mode": mode,
             "center": self.center,
@@ -120,6 +127,8 @@ def compose(frame, plan: FramingPlan, state: dict, zoom: float, *, captions: boo
     bottom = even(plan.height * 0.12) if captions else 0
     available = plan.height - top - bottom
     face, crop, mode = state["face"], None, state["mode"]
+    if mode == "region_focus":
+        crop, zoom = list(plan.crop), 1
     if mode == "subject_portrait":
         base_width = min(plan.source_width, even(plan.source_height * 9 / 16))
         if face:

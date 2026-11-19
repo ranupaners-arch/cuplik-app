@@ -17,4 +17,7 @@ def resolve_settings(defaults: OutputSettings, requested: OutputSettings, preset
     if changes.get("purpose", base["purpose"]) != base["purpose"]:
         base["retention"] = retention_profile(changes["purpose"], preset).model_dump()
     retention = {**base["retention"], **changes.pop("retention", {})}
-    return OutputSettings.model_validate({**base, **changes, "retention": retention})
+    vision = {**base["condense_vision"], **changes.pop("condense_vision", {})}
+    return OutputSettings.model_validate(
+        {**base, **changes, "retention": retention, "condense_vision": vision}
+    )

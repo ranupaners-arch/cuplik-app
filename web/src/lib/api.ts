@@ -14,6 +14,11 @@ export type Transcript = components["schemas"]["Transcript"];
 export type Settings = components["schemas"]["OutputSettings"];
 export type OutputPreferences = Omit<components["schemas"]["OutputPreferences"], "clips" | "condense"> & { clips: Settings; condense: Settings };
 export type RuntimeConfig = { provider: string; model: string; live_configured: boolean; max_upload_bytes: number; render_height: number };
+export type AnnotationRange = components["schemas"]["AnnotationRange"];
+export type AnnotationDocument = Omit<components["schemas"]["AnnotationDocument"], "ranges" | "required_chapters" | "required_specs" | "settings"> & {
+  ranges: AnnotationRange[]; required_chapters: AnnotationRange[]; required_specs: AnnotationRange[]; settings: Settings;
+};
+export type AnnotationView = Omit<components["schemas"]["AnnotationView"], "document"> & { document: AnnotationDocument };
 
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const response = await fetch(`/api${path}`, { ...init, cache: "no-store", headers: { ...(init.body ? { "Content-Type": "application/json" } : {}), ...init.headers } });

@@ -3,12 +3,12 @@ import json
 import shutil
 import zipfile
 from contextlib import asynccontextmanager
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.docs import get_swagger_ui_html
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 from redis.exceptions import RedisError
 from rq.job import Job
 from sqlalchemy import text
@@ -18,6 +18,7 @@ from sse_starlette.sse import EventSourceResponse
 
 from api.app.config import get_settings
 from api.app.db import get_engine, get_session, init_db
+from api.app.evaluation import router as evaluation_router
 from api.app.jobs import (
     BUSY,
     QueueUnavailable,
@@ -42,6 +43,7 @@ from api.app.models import (
 from api.app.preferences import read_preferences, resolve_settings
 from api.app.schemas import (
     BeatPatch,
+    ChapterExport,
     ClipPatch,
     ClipView,
     GlossaryCreate,
@@ -58,8 +60,10 @@ from api.app.schemas import (
     SolveRequest,
     Transcript,
     UploadCreate,
+    VisionReport,
     retention_profile,
 )
+from worker.pipeline.chapters import read_chapter_export
 from worker.pipeline.clip_edits import (
     caption_ids,
     preserve_trimmed_overrides,
@@ -72,6 +76,7 @@ from worker.pipeline.render import clip_fingerprint
 from worker.pipeline.signals import Signals
 from worker.pipeline.solver import InfeasibleDuration, solve
 from worker.pipeline.storage import atomic_json, file_lock, output_dir, project_dir
+from worker.pipeline.vision import read_vision_report
 
 
 @asynccontextmanager
@@ -92,6 +97,7 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
     allow_headers=["Content-Type", "Last-Event-ID"],
 )
+app.include_router(evaluation_router)
 DB = Annotated[Session, Depends(get_session)]
 CHUNK_BYTES = 4 * 1024 * 1024
 
@@ -591,6 +597,12 @@ def output_detail(output_id: str, session: DB):
             ).all()
         ),
         transcript=transcript,
+        chapter_export=read_chapter_export(output_dir(output_id), output.actual_duration_s or 0)
+        if output.mode == "condense" and output.status == "done"
+        else None,
+        vision_report=read_vision_report(output_dir(output_id))
+        if output.mode == "condense"
+        else None,
     )
 
 
@@ -718,6 +730,7 @@ def patch_clip(clip_id: str, body: ClipPatch, session: DB):
                 "platform": changes.get("platform", clip.platform),
                 "layout": changes.get("layout", "auto" if clip.layout == "center" else clip.layout),
                 "retention": changes.get("retention", clip.retention),
+                "visual_focus": changes.get("visual_focus", clip.visual_focus),
             }
         )
     except ValueError as exc:
@@ -912,17 +925,26 @@ def export(output_id: str, session: DB):
         temporary = directory / "export.tmp.zip"
         with zipfile.ZipFile(temporary, "w", compression=zipfile.ZIP_STORED) as archive:
             archive.writestr("metadata.json", detail.model_dump_json(indent=2))
-            archive.writestr(
-                "captions.txt",
-                "\n\n".join(
-                    f"#{c.rank} {c.titles[c.title_choice]}\nHook: {c.hook_options[c.hook_choice]}\nSkor: {c.score:.1f}\n{c.reason}\n\n{c.description}\n{' '.join(c.hashtags)}"
-                    for c in detail.clips
-                ),
-            )
+            if detail.output.mode == "clips":
+                archive.writestr(
+                    "captions.txt",
+                    "\n\n".join(
+                        f"#{c.rank} {c.titles[c.title_choice]}\nHook: {c.hook_options[c.hook_choice]}\nSkor: {c.score:.1f}\n{c.reason}\n\n{c.description}\n{' '.join(c.hashtags)}"
+                        for c in detail.clips
+                    ),
+                )
+            elif detail.chapter_export:
+                archive.writestr("chapters.json", detail.chapter_export.model_dump_json(indent=2))
+                archive.writestr("chapters.txt", detail.chapter_export.index_text)
+                if detail.chapter_export.youtube_valid:
+                    archive.writestr("youtube-chapters.txt", detail.chapter_export.youtube_text)
+                timeline = directory / "condensed.timeline.json"
+                if timeline.exists():
+                    archive.write(timeline, timeline.name)
             paths = (
                 [directory / f"{c.id}.mp4" for c in detail.clips]
                 if detail.output.mode == "clips"
-                else [directory / "condensed.mp4", directory / "chapters.txt"]
+                else [directory / "condensed.mp4"]
             )
             for path in paths:
                 if not path.exists():
@@ -935,4 +957,55 @@ def export(output_id: str, session: DB):
         temporary.replace(directory / "export.zip")
     return FileResponse(
         directory / "export.zip", media_type="application/zip", filename=f"cuplik-{output_id}.zip"
+    )
+
+
+@app.get("/api/outputs/{output_id}/chapters", response_model=ChapterExport)
+def chapter_export(output_id: str, session: DB):
+    output = require(session, Output, output_id)
+    if output.mode != "condense" or output.status != "done":
+        raise HTTPException(409, "Daftar bab tersedia setelah Ringkas selesai")
+    return read_chapter_export(output_dir(output_id), output.actual_duration_s or 0)
+
+
+@app.get("/api/outputs/{output_id}/vision", response_model=VisionReport)
+def vision_report(output_id: str, session: DB):
+    require(session, Output, output_id)
+    report = read_vision_report(output_dir(output_id))
+    if report is None:
+        raise HTTPException(404, "Laporan vision belum tersedia untuk output ini")
+    return report
+
+
+@app.get("/api/outputs/{output_id}/vision/frames/{frame_id}")
+def vision_frame(output_id: str, frame_id: str, session: DB):
+    report = vision_report(output_id, session)
+    frame = next((f for f in report.frames if f.id == frame_id), None)
+    if frame is None:
+        raise HTTPException(404, "ID frame tidak ditemukan")
+    path = output_dir(output_id) / "vision-frames" / f"{frame.image_sha256}.jpg"
+    if not path.is_file():
+        raise HTTPException(404, "Gambar frame tidak tersedia; laporan teks tetap dapat dibaca")
+    return FileResponse(path, media_type="image/jpeg")
+
+
+@app.get("/api/outputs/{output_id}/chapters.txt")
+def chapter_file(
+    output_id: str,
+    session: DB,
+    chapter_format: Annotated[Literal["index", "youtube"], Query(alias="format")] = "index",
+):
+    report = chapter_export(output_id, session)
+    if chapter_format == "youtube" and not report.youtube_valid:
+        raise HTTPException(
+            409, {"message": "Daftar bab belum memenuhi format YouTube", "reasons": report.reasons}
+        )
+    content = report.youtube_text if chapter_format == "youtube" else report.index_text
+    if not content:
+        raise HTTPException(404, "Indeks bab belum tersedia")
+    filename = "youtube-chapters.txt" if chapter_format == "youtube" else "chapters.txt"
+    return Response(
+        content,
+        media_type="text/plain",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )

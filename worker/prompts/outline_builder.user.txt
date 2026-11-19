@@ -1,0 +1,3 @@
+Language: {{ language }}
+Focus: {{ focus }}
+<beats>{{ beats | tojson }}</beats>

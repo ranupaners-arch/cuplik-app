@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { api, post, uploadVideo, type Output, type RuntimeConfig, type Transcript, type Settings, type OutputPreferences } from "@/lib/api";
 
 import { ClipControls, controlValues } from "@/components/clip-controls";
+import { CondenseVisionControls } from "@/components/condense-vision-controls";
 
 export function CreateForm({ projectId }: { projectId?: string }) {
   const [source, setSource] = useState("demo");
@@ -48,6 +49,9 @@ export function CreateForm({ projectId }: { projectId?: string }) {
         setCreatedProject(id);
       }
       const created: Output[] = [];
+      if (mode === "annotate") {
+        setCreatedProject(id!); setNote("Sumber disiapkan untuk anotasi. Pemilihan LLM belum dijalankan."); return;
+      }
       // Save every successful output immediately, even if creating the second mode fails.
       for (const selected of mode === "both" ? ["clips", "condense"] : [mode]) {
         const output = await post<Output>(`/projects/${id}/outputs`, { mode: selected, settings: selected === "clips" ? clipSettings : condenseSettings });
@@ -70,8 +74,8 @@ export function CreateForm({ projectId }: { projectId?: string }) {
         {source !== "demo" && <label>Bahasa transkripsi<select value={language} onChange={e => setLanguage(e.target.value)}><option value="auto">Deteksi otomatis</option><option value="id">Indonesia</option><option value="en">Inggris</option><option value="ar">Arab</option></select></label>}
       </fieldset>}
       <fieldset disabled={busy || !defaults}><legend>Output</legend>
-        <label>Mode<select value={mode} onChange={e => setMode(e.target.value)}><option value="clips">Klip</option><option value="condense">Ringkas</option><option value="both">Klip dan Ringkas</option></select></label>
-        {mode !== "condense" && <>
+        <label>Mode<select value={mode} onChange={e => setMode(e.target.value)}><option value="clips">Klip</option><option value="condense">Ringkas</option><option value="both">Klip dan Ringkas</option><option value="annotate">Siapkan sumber untuk anotasi</option></select></label>
+        {(mode === "clips" || mode === "both") && <>
           <label>Jumlah klip<input type="number" min={1} max={12} required value={clipSettings.clip_count ?? 8} onChange={e => updateClips({ clip_count: Number(e.target.value) })} /></label>
           <ClipControls value={controlValues(clipSettings)} onChange={value => updateClips(value)} />
           <label>Durasi minimum klip (detik)<input type="number" min={1} max={clipSettings.max_clip_seconds ?? 60} required value={clipSettings.min_clip_seconds ?? 3} onChange={e => updateClips({ min_clip_seconds: Number(e.target.value) })} /></label>
@@ -79,16 +83,18 @@ export function CreateForm({ projectId }: { projectId?: string }) {
           <small>Jumlah hasil dapat lebih sedikit jika kandidat tidak memenuhi durasi atau keragaman topik.</small>
           <label>Fokus momen Klip<textarea maxLength={1000} value={clipSettings.focus ?? ""} onChange={e => updateClips({ focus: e.target.value })} placeholder="Contoh: langkah pencatatan uang usaha" /></label>
         </>}
-        {mode !== "clips" && <>
+        {(mode === "condense" || mode === "both") && <>
           <label>Target ringkasan (detik)<input type="number" min={3} max={3600} required value={condenseSettings.target_seconds ?? 20} onChange={e => updateCondense({ target_seconds: Number(e.target.value) })} /></label>
           <label>Fokus Ringkas<textarea maxLength={1000} value={condenseSettings.focus ?? ""} onChange={e => updateCondense({ focus: e.target.value })} /></label>
           <label><input type="checkbox" checked={condenseSettings.captions ?? true} onChange={e => updateCondense({ captions: e.target.checked })} />Caption Ringkas</label>
+          <CondenseVisionControls value={condenseSettings.condense_vision ?? { enabled: false, screen_tutorial: false, max_frames: 720 }} onChange={value => updateCondense({ condense_vision: value })} />
         </>}
         <button type="submit">{busy ? "Mengirim…" : projectId ? "Buat output dari proyek ini" : "Mulai proses"}</button>
       </fieldset>
     </form>
     <p role="status">{note}</p>{error && <p role="alert" className="error">{error}</p>}
     {createdProject && <p><Link href={`/projects/${createdProject}`}>Lihat progres sumber dan transkrip</Link></p>}
+    {createdProject && mode === "annotate" && <p><Link href={`/projects/${createdProject}/evaluate`}>Buka anotasi setelah sumber siap</Link></p>}
     {outputs.length > 0 && <section><h2>Output dibuat</h2><ul>{outputs.map(output => <li key={output.id}><Link href={`/outputs/${output.id}`}>Buka output {output.mode === "clips" ? "Klip" : "Ringkas"}</Link></li>)}</ul></section>}
   </>;
 }

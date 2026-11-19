@@ -1,55 +1,72 @@
-# Evaluasi Klip Cuplik
+# Evaluasi Klip dan Ringkas
 
-Evaluator Fase 2 menghitung recall/precision pada **IoU ≥0,5** dengan pencocokan satu-ke-satu. Satu prediksi tidak dapat memenuhi beberapa anotasi. Laporan membandingkan pilihan berdasarkan skor dasar dengan pilihan setelah rerank, menghitung jumlah topik, dan memeriksa batas kata jika transkrip per kata tersedia.
+Target dataset: **10 sumber Klip dan 5 sumber Ringkas unik**, ditinjau manusia sebelum melihat prediksi, dengan provider nyata. Dataset tersebut belum tersedia. `make eval` melaporkan `quality_status: not_run` dan skor `null` ketika belum ada kasus yang memenuhi syarat; keberhasilan perintah tidak berarti target kualitas tercapai.
 
-Target kualitas tetap **10 video Klip beranotasi manusia**. Video dan anotasi pengguna belum tersedia. `make eval` akan mengembalikan `quality_status: not_run` serta skor `null` sampai tersedia data dan prediksi provider nyata. Keberhasilan perintah bukan berarti target kualitas tercapai. Fixture sintetis dan prediksi mock tidak masuk agregat kualitas.
+## Membuat anotasi melalui aplikasi
 
-Simpan satu folder per video di `eval/golden/`, misalnya `video-01/expected.json`:
+1. Pada Buat pilih **Siapkan sumber untuk anotasi**. Unggah video/sidecar atau gunakan sumber YouTube. Mode ini menyiapkan ingest/transkrip tanpa pemilihan LLM.
+2. Setelah transkrip selesai, buka `/projects/<id>/evaluate`. Putar sumber asli dengan caption transkrip yang tetap perlu diperiksa.
+3. Label Klip berisi rentang momen. Label Ringkas berisi rentang bab wajib dan spesifikasi penting (angka, nama alat, ukuran, kondisi). Timestamp memakai detik **sumber**, bukan waktu MP4 hasil.
+4. Simpan draft; untuk menyelesaikan isi nama peninjau, rentang/label dan konfirmasi sudah menonton. Perubahan dari tab lama ditolak tanpa menimpa revisi baru. Sumber/transkrip yang berubah memerlukan tinjauan ulang.
+5. Sesudah label disimpan, buat output LLM dari halaman proyek. Kembali ke anotasi, muat ulang, lalu pilih prediksi pembanding selesai. Ekspor ZIP.
+6. Ekstrak menjadi `eval/golden/<nama-kasus>/`. Unduh sumber dari halaman anotasi dan simpan sebagai `source.mp4` di folder yang sama. ZIP menyertakan label, transkrip, metadata anotasi dan prediksi opsional; media tidak digandakan ke ZIP.
+
+Label yang diubah setelah prediksi sudah tersimpan menjadi **assisted** dan dikeluarkan dari agregat independen. Menyimpan ulang label identik tidak mengubah status tinjauan awal. Ini aturan konservatif untuk mengurangi kebocoran label, bukan bukti otomatis perilaku peninjau.
+
+Output baru membawa checksum sumber/transkrip. Paket dengan prediksi harus memakai jejak input yang sama; hasil legacy tanpa provenance perlu dibuat ulang sebagai output baru. Sumber yang dihapus oleh TTL dapat disiapkan ulang dari halaman anotasi tanpa mengubah anotasi lokal. Perubahan isi sumber ditandai sebagai stale.
+
+## Format dan metrik
+
+Satu folder per kasus. Path `./...` relatif terhadap folder kasus, path biasa relatif terhadap root repository, dan path absolut diterima. Media serta data pribadi tetap di direktori yang diabaikan Git.
+
+Contoh `expected.json` Klip (format lama tanpa provenance tetap terbaca):
 
 ```json
 {
   "mode": "clips",
   "dataset_kind": "human",
   "annotator": "nama peninjau",
-  "source": "data/golden/video-01.mp4",
-  "transcript": "data/golden/video-01-transcript.json",
+  "annotation_status": "reviewed",
+  "independent": true,
+  "source": "./source.mp4",
+  "transcript": "./transcript.json",
   "settings": {"clip_count": 8, "min_clip_seconds": 15, "max_clip_seconds": 60},
-  "ranges": [{"start_s": 10, "end_s": 40}],
-  "note": "Anotasi momen yang berdiri sendiri dan memiliki payoff; dibuat sebelum melihat prediksi."
+  "ranges": [{"start_s": 10, "end_s": 40, "topic": "catatan transaksi"}]
 }
 ```
 
-`transcript` diperlukan untuk menjalankan pipeline dan memeriksa kata; opsional untuk menilai prediksi yang sudah disimpan. Timestamp anotasi manual berupa detik sumber. Media tetap di `data/` yang diabaikan Git. Path biasa relatif ke root repository, path `./...` relatif ke folder kasus, dan path absolut juga diterima.
+Recall/precision Klip memakai **IoU ≥0,5**, pencocokan satu-ke-satu, jumlah topik dan perbandingan sebelum/sesudah rerank jika baseline tersedia. Pemeriksaan batas kata membutuhkan transkrip per kata; transkrip per kalimat ditandai tidak tersedia untuk pemeriksaan ini. Baseline pipeline menggunakan kandidat, batas overlap dan batas topik yang sama.
 
-Dua cara evaluasi:
-
-```sh
-# 1. Nilai prediksi yang sudah tersimpan di tiap folder kasus.
-make eval
-
-# 2. Jalankan pemilihan menggunakan sumber, transkrip, dan provider dari .env.
-# Default konfigurasi adalah mock; tidak ada ASR atau render di evaluator.
-uv run python eval/evaluate.py --run --output data/eval/report.json
-```
-
-`--run` membuat cache audio/sinyal/prompt di `data/eval/`. Ia menggunakan transkrip yang disediakan, sehingga pengukuran ini mengevaluasi seleksi, bukan WER transkripsi. Kesalahan sumber/model/config menjadi error, bukan prediksi kosong yang dianggap sah.
-
-Untuk cara pertama, salin laporan `GET /api/outputs/{id}/selection` menjadi `predictions.json` di folder kasus. Evaluator langsung menerima struktur laporan pipeline. Prediksi dari sistem lain juga dapat memakai:
+Contoh Ringkas pada `expected.json`:
 
 ```json
 {
-  "provider": "ollama",
-  "clips": [{"start_s": 10, "end_s": 40, "topic": "catatan transaksi"}],
-  "baseline_clips": [{"start_s": 15, "end_s": 45, "topic": "catatan transaksi"}]
+  "mode": "condense",
+  "dataset_kind": "human",
+  "annotator": "nama peninjau",
+  "annotation_status": "reviewed",
+  "independent": true,
+  "source": "./source.mp4",
+  "transcript": "./transcript.json",
+  "settings": {"target_seconds": 120},
+  "required_chapters": [{"start_s": 10, "end_s": 30, "topic": "pasang alat"}],
+  "required_specs": [{"start_s": 22, "end_s": 25, "topic": "ukuran baut"}]
 }
 ```
 
-`baseline_clips` opsional; baseline pipeline menggunakan kandidat yang sama, urutan skor dasar, serta batas topik/overlap yang sama agar perbandingan rerank adil. `--predictions-root /path/hasil` membaca `<hasil>/<nama-kasus>/predictions.json`. `--require-predictions` mengembalikan exit code 1 bila prediksi hilang. JSON/rentang tidak valid juga gagal.
+Ringkas memakai gabungan interval `retained_ranges` hasil garis waktu render, bukan hanya rencana solver. Bab dihitung cocok jika cakupannya **≥90%**, spesifikasi **≥99%**. Interval tumpang tindih digabung, sehingga mengulang satu segmen tidak menaikkan recall. Deviasi durasi memakai MP4 akhir dan target, dengan toleransi **±3%**. Ini metrik retensi waktu; belum menilai kebenaran/koherensi visual, ASR atau kecukupan isi secara semantik.
+
+Prediksi Klip menerima audit pipeline atau objek dengan `provider`, `clips` berisi `start_s/end_s`, dan `baseline_clips` opsional. Ringkas memerlukan `mode: condense`, `provider`, `duration_s` dan `retained_ranges` berisi `start_s/end_s`. Paket aplikasi menambahkan `provenance` otomatis; jangan mengubah checksum untuk memaksa kecocokan. Untuk Klip, audit menilai seleksi AI sebelum trim manual, bukan kualitas edit pengguna atau retensi renderer.
+
+## Menjalankan evaluator
 
 ```sh
+make eval
 make eval-fixtures
+# Klip saja: jalankan seleksi pada transkrip tersedia, tanpa ASR/render.
+uv run python eval/evaluate.py --run --output data/eval/report.json
 ```
 
-Perintah ini menguji mekanisme evaluator terhadap fixture sintetis tetap di `eval/fixtures/`. Contoh perubahan recall di fixture **bukan bukti peningkatan kualitas reranker**. Tes backend juga menjalankan evaluator pada video sintetis melalui pipeline yang sesungguhnya.
+`--run` memakai provider konfigurasi (default mock); cache sinyal/prompt di `data/eval/`. Untuk Ringkas gunakan paket prediksi hasil render. `--predictions-root /path/hasil` membaca `<hasil>/<nama-kasus>/predictions.json`; `--require-predictions` menghasilkan exit code 1 bila prediksi hilang. Input/provenance/rentang tidak valid juga gagal.
 
-Mode Ringkas, target 5 tutorial, `required_chapters`, `required_specs`, dan deviasi durasi ditangani pada Fase 5. Anotasi `mode: condense` saat ini dilaporkan sebagai `deferred_phase_5`.
+Draft tidak dinilai. Sumber tanpa berkas untuk verifikasi, peninjau kosong, assisted, demo/fixture sintetis dan provider selain Gemini/Anthropic/Ollama dikeluarkan dari agregat kualitas. Dataset manual di luar aplikasi harus menyatakan metadata secara jujur; nama provider di JSON bukan bukti panggilan model. Jumlah video memakai checksum sumber unik agar salinan kasus tidak memenuhi target 10/5 secara palsu. Fixture/test otomatis hanya menguji mekanisme dan tidak mengisi golden set manusia.

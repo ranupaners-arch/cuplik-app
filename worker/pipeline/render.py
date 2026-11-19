@@ -6,13 +6,14 @@ from pathlib import Path
 
 from api.app.config import get_settings
 from api.app.models import Beat, Clip
-from api.app.schemas import RetentionSettings, Transcript
+from api.app.schemas import RetentionSettings, Transcript, VisualFocus
 from worker.pipeline.audio import normalize_audio
 from worker.pipeline.captions import caption_plan, timed_tokens, write_ass
 from worker.pipeline.delivery import effective_layout, inspect_delivery
+from worker.pipeline.focus import apply_focus
 from worker.pipeline.framepipe import encode_clip
 from worker.pipeline.framing import FramingPlan, analyze_framing, video_filter
-from worker.pipeline.media import run
+from worker.pipeline.media import probe_file, run
 from worker.pipeline.qc import inspect_clip
 from worker.pipeline.reframe import tracked_plan
 from worker.pipeline.retention import build_edl, remap_tokens
@@ -24,27 +25,29 @@ def fingerprint(data) -> str:
 
 
 def clip_fingerprint(clip: Clip) -> str:
-    return fingerprint(
-        {
-            "version": 4,
-            "purpose": clip.purpose,
-            "platform": clip.platform,
-            "retention": RetentionSettings.model_validate(clip.retention).model_dump(),
-            "keywords": clip.keywords,
-            "emoji": clip.emoji,
-            "cold_open_id": clip.selection.get("cold_open_id"),
-            "emphasis_word_ids": clip.selection.get("emphasis_word_ids", []),
-            "caption_profile": "compact-karaoke-v2",
-            "framing_profile": "tracked-visual-delivery-v4",
-            "layout": clip.layout,
-            "start": clip.start_s,
-            "end": clip.end_s,
-            "hook": clip.hook_options[clip.hook_choice],
-            "captions": clip.captions,
-            "overrides": clip.caption_overrides,
-            "height": get_settings().render_height,
-        }
-    )
+    data = {
+        "version": 4,
+        "purpose": clip.purpose,
+        "platform": clip.platform,
+        "retention": RetentionSettings.model_validate(clip.retention).model_dump(),
+        "keywords": clip.keywords,
+        "emoji": clip.emoji,
+        "cold_open_id": clip.selection.get("cold_open_id"),
+        "emphasis_word_ids": clip.selection.get("emphasis_word_ids", []),
+        "caption_profile": "compact-karaoke-v2",
+        "framing_profile": "tracked-visual-delivery-v4",
+        "layout": clip.layout,
+        "start": clip.start_s,
+        "end": clip.end_s,
+        "hook": clip.hook_options[clip.hook_choice],
+        "captions": clip.captions,
+        "overrides": clip.caption_overrides,
+        "height": get_settings().render_height,
+    }
+    options = VisualFocus.model_validate(clip.visual_focus)
+    if options.mode != "safe":
+        data.update(visual_focus=options.model_dump(), visual_focus_version=1)
+    return fingerprint(data)
 
 
 def ass_time(seconds: float) -> str:
@@ -177,6 +180,9 @@ def render_clip(
     started = time.monotonic()
     requested = effective_layout(clip)
     framing = tracked_plan(analyze_framing(source, clip.start_s, clip.end_s, requested), requested)
+    framing = apply_focus(
+        framing, source, clip.start_s, clip.end_s, VisualFocus.model_validate(clip.visual_focus)
+    )
     if clip.platform != "youtube":
         # A multiple of 32 makes both sides even and preserves an exact 9:16 canvas.
         framing.height = max(32, framing.height // 32 * 32)
@@ -205,6 +211,10 @@ def render_clip(
         video_done = time.monotonic()
     qc = inspect_clip(path, edit.duration, framing, captions, roi, directory)
     delivery = inspect_delivery(clip, framing, qc["duration_s"])
+    if framing.focus.get("applied") and tracking["focus_frames"] < tracking["frames"]:
+        delivery["notes"].append(
+            "Sebagian adegan kembali ke bingkai utuh karena konteks visual berubah. Periksa seluruh preview."
+        )
     qc["delivery"] = delivery
     qc["checks"]["platform_format"] = delivery["format_valid"]
     qc["passed"] = all(qc["checks"].values())
@@ -257,16 +267,22 @@ def render_condensed(
     if not kept:
         raise ValueError("Tidak ada beat yang dipertahankan")
     height = get_settings().render_height
-    parts = []
+    parts, spans = [], []
+    elapsed = 0.0
     for i, beat in enumerate(kept):
-        key = fingerprint({"beat": beat.model_dump(), "height": height, "captions": captions})[:20]
+        data = beat.model_dump()
+        if not beat.evidence:
+            data.pop("evidence")
+        key = fingerprint({"beat": data, "height": height, "captions": captions})[:20]
         part = directory / f"part-{key}.mp4"
         if not part.exists():
             ass = directory / f"part-{key}.ass"
             rate = beat.speed if beat.decision == "speed" else 1
             subtitles(
                 ass,
-                [(0, (beat.end_s - beat.start_s) / rate, beat.text)] if captions else [],
+                [(0, (beat.end_s - beat.start_s) / rate, beat.text)]
+                if captions and beat.kind == "speech" and beat.text
+                else [],
                 height * 16 // 9 // 2 * 2,
                 height,
             )
@@ -280,6 +296,22 @@ def render_condensed(
                 subtitle_path=ass,
             )
         parts.append(part)
+        measured = probe_file(part)["duration_s"]
+        spans.append(
+            {
+                "beat_id": beat.id,
+                "chapter_id": beat.chapter_id,
+                "sentence_id": beat.sentence_id,
+                "kind": beat.kind,
+                "source_beat_id": beat.evidence.get("id"),
+                "source_start_s": beat.start_s,
+                "source_end_s": beat.end_s,
+                "output_start_s": elapsed,
+                "output_end_s": elapsed + measured,
+                "part": part.name,
+            }
+        )
+        elapsed += measured
         progress((i + 1) / len(kept), f"Merender bagian {i + 1}/{len(kept)}")
     concat = directory / "concat.txt"
     concat.write_text("\n".join(f"file '{part.name}'" for part in parts))
@@ -306,4 +338,18 @@ def render_condensed(
     )
     destination = directory / "condensed.mp4"
     temporary.replace(destination)
+    duration = probe_file(destination)["duration_s"]
+    if duration <= spans[-1]["output_start_s"]:
+        raise ValueError("Durasi hasil Ringkas tidak sesuai garis waktu segmen")
+    spans[-1]["output_end_s"] = duration
+    atomic_json(
+        directory / "condensed.timeline.json",
+        {
+            "version": 1,
+            "timing_source": "encoded_parts",
+            "duration_s": duration,
+            "duration_drift_s": duration - elapsed,
+            "spans": spans,
+        },
+    )
     return destination

@@ -158,6 +158,38 @@ def retention_profile(purpose: str, preset: str = "compact") -> RetentionSetting
     )
 
 
+class FocusRegion(StrictModel):
+    x: float = Field(ge=0, le=1)
+    y: float = Field(ge=0, le=1)
+    width: float = Field(ge=0.1, le=1)
+    height: float = Field(ge=0.1, le=1)
+
+    @model_validator(mode="after")
+    def inside_source(self) -> Self:
+        if self.x + self.width > 1 + 1e-6 or self.y + self.height > 1 + 1e-6:
+            raise ValueError("Area fokus harus berada di dalam bingkai sumber")
+        return self
+
+
+class VisualFocus(StrictModel):
+    mode: Literal["safe", "activity", "manual"] = "safe"
+    region: FocusRegion | None = None
+
+    @model_validator(mode="after")
+    def complete(self) -> Self:
+        if self.mode == "manual" and self.region is None:
+            raise ValueError("Area manual diperlukan untuk mode fokus manual")
+        if self.mode != "manual" and self.region is not None:
+            raise ValueError("Area manual hanya berlaku pada mode fokus manual")
+        return self
+
+
+class CondenseVisionSettings(StrictModel):
+    enabled: bool = False
+    screen_tutorial: bool = False
+    max_frames: int = Field(default=720, ge=16, le=4096)
+
+
 class OutputSettings(StrictModel):
     clip_count: int = Field(default=8, ge=1, le=12)
     min_clip_seconds: float = Field(default=3, ge=1, le=180)
@@ -170,6 +202,8 @@ class OutputSettings(StrictModel):
     platform: Platform = "youtube"
     layout: Literal["auto", "source", "portrait"] = "auto"
     retention: RetentionSettings = Field(default_factory=RetentionSettings)
+    visual_focus: VisualFocus = Field(default_factory=VisualFocus)
+    condense_vision: CondenseVisionSettings = Field(default_factory=CondenseVisionSettings)
 
     @model_validator(mode="after")
     def clip_range(self) -> Self:
@@ -179,6 +213,8 @@ class OutputSettings(StrictModel):
             raise ValueError(
                 "Pilih pembingkaian otomatis atau vertikal untuk platform video pendek"
             )
+        if self.visual_focus.mode != "safe" and self.layout == "source":
+            raise ValueError("Gunakan pembingkaian otomatis/vertikal untuk memilih area fokus")
         if "retention" not in self.model_fields_set:
             # Computed defaults must not masquerade as explicit request overrides.
             object.__setattr__(self, "retention", retention_profile(self.purpose))
@@ -276,6 +312,7 @@ class ClipPatch(StrictModel):
     end_s: float | None = Field(default=None, gt=0)
     layout: Literal["auto", "source", "portrait"] | None = None
     retention: RetentionSettings | None = None
+    visual_focus: VisualFocus | None = None
     caption_overrides: dict[str, str] | None = None
     rating: Literal["up", "down"] | None = None
     rating_note: str | None = Field(default=None, max_length=1000)
@@ -331,6 +368,7 @@ class ClipView(BaseModel):
     platform: str
     layout: str
     retention: dict
+    visual_focus: dict
     rating: str | None
     rating_note: str
     render_fingerprint: str | None
@@ -369,6 +407,72 @@ class GlossaryCreate(StrictModel):
         return value
 
 
+class ChapterMarker(StrictModel):
+    chapter_id: str
+    title: str
+    start_s: float = Field(ge=0)
+    end_s: float = Field(gt=0)
+    timestamp: str
+
+
+class ChapterExport(StrictModel):
+    version: int = 1
+    timing_source: Literal["encoded_parts", "legacy_plan"]
+    duration_s: float = Field(ge=0)
+    chapters: list[ChapterMarker] = Field(default_factory=list)
+    youtube_valid: bool = False
+    reasons: list[str] = Field(default_factory=list)
+    index_text: str = ""
+    youtube_text: str | None = None
+
+
+class FrameDescription(StrictModel):
+    id: str = Field(pattern=r"^f[0-9]+$")
+    action: str = Field(min_length=1, max_length=500)
+    screen_text: str = Field(default="", max_length=1000)
+    result: bool = False
+    idle: bool = False
+    uncertain: bool = True
+    hands_visible: bool | None = None
+    objects: list[str] = Field(default_factory=list, max_length=12)
+
+    @field_validator("action")
+    @classmethod
+    def nonblank_action(cls, value):
+        if not value.strip():
+            raise ValueError("Deskripsi frame harus berupa teks atau penanda ketidakpastian")
+        return value
+
+    @field_validator("objects")
+    @classmethod
+    def short_object_names(cls, values):
+        if any(not value.strip() or len(value) > 80 for value in values):
+            raise ValueError("Nama objek kosong atau terlalu panjang")
+        return values
+
+
+class VisionFrame(FrameDescription):
+    beat_id: str
+    time_s: float = Field(ge=0)
+    width: int = Field(gt=0, le=1024)
+    height: int = Field(gt=0, le=1024)
+    image_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    url: str
+
+
+class VisionReport(StrictModel):
+    version: int = 1
+    provider: str
+    vision_model: str
+    source_sha256: str
+    transcript_sha256: str
+    speech_beats: int = Field(ge=0)
+    visual_beats: int = Field(ge=0)
+    frame_count: int = Field(ge=0)
+    notes: list[str]
+    frames: list[VisionFrame]
+
+
 class OutputDetail(BaseModel):
     output: Output
     project: Project
@@ -376,6 +480,60 @@ class OutputDetail(BaseModel):
     chapters: list[Chapter]
     beats: list[Beat]
     transcript: Transcript | None
+    chapter_export: ChapterExport | None = None
+    vision_report: VisionReport | None = None
+
+
+class AnnotationRange(StrictModel):
+    start_s: float = Field(ge=0)
+    end_s: float = Field(gt=0)
+    label: str = Field(default="", max_length=300)
+
+    @model_validator(mode="after")
+    def ordered(self) -> Self:
+        if self.end_s <= self.start_s:
+            raise ValueError("Akhir anotasi harus sesudah awal")
+        return self
+
+
+class AnnotationDocument(StrictModel):
+    status: Literal["draft", "reviewed"] = "draft"
+    annotator: str = Field(default="", max_length=120)
+    independent: bool = True
+    review_confirmed: bool = False
+    settings: OutputSettings = Field(default_factory=OutputSettings)
+    ranges: list[AnnotationRange] = Field(default_factory=list, max_length=100)
+    required_chapters: list[AnnotationRange] = Field(default_factory=list, max_length=100)
+    required_specs: list[AnnotationRange] = Field(default_factory=list, max_length=100)
+    note: str = Field(default="", max_length=4000)
+
+    @model_validator(mode="after")
+    def reviewed_by_person(self) -> Self:
+        if self.status == "reviewed" and (not self.annotator.strip() or not self.review_confirmed):
+            raise ValueError("Isi nama peninjau dan konfirmasi peninjauan manual")
+        return self
+
+
+class AnnotationSave(StrictModel):
+    expected_revision: int = Field(ge=0)
+    source_fingerprint: str = Field(min_length=1)
+    transcript_fingerprint: str = Field(min_length=1)
+    document: AnnotationDocument
+
+
+class AnnotationView(StrictModel):
+    project_id: str
+    mode: Literal["clips", "condense"]
+    revision: int
+    document: AnnotationDocument
+    dataset_kind: Literal["human", "synthetic"]
+    independent: bool
+    predictions_exist: bool
+    stale: bool
+    source_fingerprint: str
+    transcript_fingerprint: str
+    duration_s: float
+    language: str
 
 
 def finite_duration(value: float) -> float:

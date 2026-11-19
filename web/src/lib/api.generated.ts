@@ -4,6 +4,92 @@
  */
 
 export interface paths {
+    "/api/projects/{project_id}/annotations/{mode}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read Annotation */
+        get: operations["read_annotation_api_projects__project_id__annotations__mode__get"];
+        /** Save Annotation */
+        put: operations["save_annotation_api_projects__project_id__annotations__mode__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{project_id}/source": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Source File */
+        get: operations["source_file_api_projects__project_id__source_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{project_id}/prepare-source": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Prepare Source */
+        post: operations["prepare_source_api_projects__project_id__prepare_source_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{project_id}/transcript.vtt": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Transcript Track */
+        get: operations["transcript_track_api_projects__project_id__transcript_vtt_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{project_id}/annotations/{mode}/export.zip": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Export Annotation */
+        get: operations["export_annotation_api_projects__project_id__annotations__mode__export_zip_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/health": {
         parameters: {
             query?: never;
@@ -520,10 +606,168 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/outputs/{output_id}/chapters": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Chapter Export */
+        get: operations["chapter_export_api_outputs__output_id__chapters_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/outputs/{output_id}/vision": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Vision Report */
+        get: operations["vision_report_api_outputs__output_id__vision_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/outputs/{output_id}/vision/frames/{frame_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Vision Frame */
+        get: operations["vision_frame_api_outputs__output_id__vision_frames__frame_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/outputs/{output_id}/chapters.txt": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Chapter File */
+        get: operations["chapter_file_api_outputs__output_id__chapters_txt_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AnnotationDocument */
+        AnnotationDocument: {
+            /**
+             * Status
+             * @default draft
+             * @enum {string}
+             */
+            status: "draft" | "reviewed";
+            /**
+             * Annotator
+             * @default
+             */
+            annotator: string;
+            /**
+             * Independent
+             * @default true
+             */
+            independent: boolean;
+            /**
+             * Review Confirmed
+             * @default false
+             */
+            review_confirmed: boolean;
+            settings?: components["schemas"]["OutputSettings"];
+            /** Ranges */
+            ranges?: components["schemas"]["AnnotationRange"][];
+            /** Required Chapters */
+            required_chapters?: components["schemas"]["AnnotationRange"][];
+            /** Required Specs */
+            required_specs?: components["schemas"]["AnnotationRange"][];
+            /**
+             * Note
+             * @default
+             */
+            note: string;
+        };
+        /** AnnotationRange */
+        AnnotationRange: {
+            /** Start S */
+            start_s: number;
+            /** End S */
+            end_s: number;
+            /**
+             * Label
+             * @default
+             */
+            label: string;
+        };
+        /** AnnotationSave */
+        AnnotationSave: {
+            /** Expected Revision */
+            expected_revision: number;
+            /** Source Fingerprint */
+            source_fingerprint: string;
+            /** Transcript Fingerprint */
+            transcript_fingerprint: string;
+            document: components["schemas"]["AnnotationDocument"];
+        };
+        /** AnnotationView */
+        AnnotationView: {
+            /** Project Id */
+            project_id: string;
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "clips" | "condense";
+            /** Revision */
+            revision: number;
+            document: components["schemas"]["AnnotationDocument"];
+            /**
+             * Dataset Kind
+             * @enum {string}
+             */
+            dataset_kind: "human" | "synthetic";
+            /** Independent */
+            independent: boolean;
+            /** Predictions Exist */
+            predictions_exist: boolean;
+            /** Stale */
+            stale: boolean;
+            /** Source Fingerprint */
+            source_fingerprint: string;
+            /** Transcript Fingerprint */
+            transcript_fingerprint: string;
+            /** Duration S */
+            duration_s: number;
+            /** Language */
+            language: string;
+        };
         /** Beat */
         Beat: {
             /** Id */
@@ -550,6 +794,10 @@ export interface components {
              * @default
              */
             visual_desc: string;
+            /** Evidence */
+            evidence?: {
+                [key: string]: unknown;
+            };
             /**
              * Label
              * @default step
@@ -631,6 +879,50 @@ export interface components {
             /** Required */
             required: boolean;
         };
+        /** ChapterExport */
+        ChapterExport: {
+            /**
+             * Version
+             * @default 1
+             */
+            version: number;
+            /**
+             * Timing Source
+             * @enum {string}
+             */
+            timing_source: "encoded_parts" | "legacy_plan";
+            /** Duration S */
+            duration_s: number;
+            /** Chapters */
+            chapters?: components["schemas"]["ChapterMarker"][];
+            /**
+             * Youtube Valid
+             * @default false
+             */
+            youtube_valid: boolean;
+            /** Reasons */
+            reasons?: string[];
+            /**
+             * Index Text
+             * @default
+             */
+            index_text: string;
+            /** Youtube Text */
+            youtube_text?: string | null;
+        };
+        /** ChapterMarker */
+        ChapterMarker: {
+            /** Chapter Id */
+            chapter_id: string;
+            /** Title */
+            title: string;
+            /** Start S */
+            start_s: number;
+            /** End S */
+            end_s: number;
+            /** Timestamp */
+            timestamp: string;
+        };
         /** ClipPatch */
         ClipPatch: {
             /** Title Choice */
@@ -650,6 +942,7 @@ export interface components {
             /** Layout */
             layout?: ("auto" | "source" | "portrait") | null;
             retention?: components["schemas"]["RetentionSettings"] | null;
+            visual_focus?: components["schemas"]["VisualFocus"] | null;
             /** Caption Overrides */
             caption_overrides?: {
                 [key: string]: string;
@@ -719,6 +1012,10 @@ export interface components {
             retention: {
                 [key: string]: unknown;
             };
+            /** Visual Focus */
+            visual_focus: {
+                [key: string]: unknown;
+            };
             /** Rating */
             rating: string | null;
             /** Rating Note */
@@ -738,6 +1035,35 @@ export interface components {
             file_url?: string | null;
             /** Thumbnail Url */
             thumbnail_url?: string | null;
+        };
+        /** CondenseVisionSettings */
+        CondenseVisionSettings: {
+            /**
+             * Enabled
+             * @default false
+             */
+            enabled: boolean;
+            /**
+             * Screen Tutorial
+             * @default false
+             */
+            screen_tutorial: boolean;
+            /**
+             * Max Frames
+             * @default 720
+             */
+            max_frames: number;
+        };
+        /** FocusRegion */
+        FocusRegion: {
+            /** X */
+            x: number;
+            /** Y */
+            y: number;
+            /** Width */
+            width: number;
+            /** Height */
+            height: number;
         };
         /** GlossaryCreate */
         GlossaryCreate: {
@@ -777,6 +1103,10 @@ export interface components {
             mode: string;
             /** Settings */
             settings?: {
+                [key: string]: unknown;
+            };
+            /** Provenance */
+            provenance?: {
                 [key: string]: unknown;
             };
             /**
@@ -836,6 +1166,8 @@ export interface components {
             /** Beats */
             beats: components["schemas"]["Beat"][];
             transcript: components["schemas"]["Transcript"] | null;
+            chapter_export?: components["schemas"]["ChapterExport"] | null;
+            vision_report?: components["schemas"]["VisionReport"] | null;
         };
         /** OutputPreferences */
         OutputPreferences: {
@@ -904,6 +1236,8 @@ export interface components {
              */
             layout: "auto" | "source" | "portrait";
             retention?: components["schemas"]["RetentionSettings"];
+            visual_focus?: components["schemas"]["VisualFocus"];
+            condense_vision?: components["schemas"]["CondenseVisionSettings"];
         };
         /** OutputSettingsInput */
         OutputSettingsInput: {
@@ -961,6 +1295,8 @@ export interface components {
              */
             layout: "auto" | "source" | "portrait";
             retention?: components["schemas"]["RetentionSettings"];
+            visual_focus?: components["schemas"]["VisualFocus"];
+            condense_vision?: components["schemas"]["CondenseVisionSettings"];
         };
         /** ProbeRequest */
         ProbeRequest: {
@@ -1248,6 +1584,85 @@ export interface components {
             /** Context */
             ctx?: Record<string, never>;
         };
+        /** VisionFrame */
+        VisionFrame: {
+            /** Id */
+            id: string;
+            /** Action */
+            action: string;
+            /**
+             * Screen Text
+             * @default
+             */
+            screen_text: string;
+            /**
+             * Result
+             * @default false
+             */
+            result: boolean;
+            /**
+             * Idle
+             * @default false
+             */
+            idle: boolean;
+            /**
+             * Uncertain
+             * @default true
+             */
+            uncertain: boolean;
+            /** Hands Visible */
+            hands_visible?: boolean | null;
+            /** Objects */
+            objects?: string[];
+            /** Beat Id */
+            beat_id: string;
+            /** Time S */
+            time_s: number;
+            /** Width */
+            width: number;
+            /** Height */
+            height: number;
+            /** Image Sha256 */
+            image_sha256: string;
+            /** Url */
+            url: string;
+        };
+        /** VisionReport */
+        VisionReport: {
+            /**
+             * Version
+             * @default 1
+             */
+            version: number;
+            /** Provider */
+            provider: string;
+            /** Vision Model */
+            vision_model: string;
+            /** Source Sha256 */
+            source_sha256: string;
+            /** Transcript Sha256 */
+            transcript_sha256: string;
+            /** Speech Beats */
+            speech_beats: number;
+            /** Visual Beats */
+            visual_beats: number;
+            /** Frame Count */
+            frame_count: number;
+            /** Notes */
+            notes: string[];
+            /** Frames */
+            frames: components["schemas"]["VisionFrame"][];
+        };
+        /** VisualFocus */
+        VisualFocus: {
+            /**
+             * Mode
+             * @default safe
+             * @enum {string}
+             */
+            mode: "safe" | "activity" | "manual";
+            region?: components["schemas"]["FocusRegion"] | null;
+        };
         /** Word */
         Word: {
             /** Id */
@@ -1268,6 +1683,201 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    read_annotation_api_projects__project_id__annotations__mode__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                mode: "clips" | "condense";
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnnotationView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    save_annotation_api_projects__project_id__annotations__mode__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                mode: "clips" | "condense";
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AnnotationSave"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnnotationView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    source_file_api_projects__project_id__source_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    prepare_source_api_projects__project_id__prepare_source_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    transcript_track_api_projects__project_id__transcript_vtt_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_annotation_api_projects__project_id__annotations__mode__export_zip_get: {
+        parameters: {
+            query?: {
+                output_id?: string | null;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                mode: "clips" | "condense";
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     health_api_health_get: {
         parameters: {
             query?: never;
@@ -2347,6 +2957,133 @@ export interface operations {
     export_api_outputs__output_id__export_zip_get: {
         parameters: {
             query?: never;
+            header?: never;
+            path: {
+                output_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    chapter_export_api_outputs__output_id__chapters_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                output_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChapterExport"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    vision_report_api_outputs__output_id__vision_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                output_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VisionReport"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    vision_frame_api_outputs__output_id__vision_frames__frame_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                output_id: string;
+                frame_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    chapter_file_api_outputs__output_id__chapters_txt_get: {
+        parameters: {
+            query?: {
+                format?: "index" | "youtube";
+            };
             header?: never;
             path: {
                 output_id: string;

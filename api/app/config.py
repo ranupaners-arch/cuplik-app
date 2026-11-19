@@ -16,9 +16,11 @@ class Settings(BaseSettings):
     web_origin: str = "http://localhost:3000"
     llm_provider: Literal["mock", "gemini", "anthropic", "ollama"] = "mock"
     llm_model_fast: str = ""
+    llm_model_vision: str = ""
     gemini_api_key: str = ""
     anthropic_api_key: str = ""
     ollama_base_url: str = "http://127.0.0.1:11434"
+    ollama_num_ctx: int = Field(default=16384, ge=4096, le=262144)
     llm_timeout_seconds: int = Field(default=90, ge=1, le=600)
     job_timeout_seconds: int = Field(default=7200, ge=60)
     max_upload_bytes: int = Field(default=4 * 1024**3, ge=1)

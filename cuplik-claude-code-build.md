@@ -13,7 +13,7 @@ Instruksi pengguna saat ini: bangun dasar fungsional, sample API LLM dan workflo
 - Web: Next.js 16 App Router, React 19, TypeScript 5.9; versi terkunci pada lockfile. Next 15 pada prompt asli digantikan sesuai status dukungan framework.
 - API/worker: Python 3.12, FastAPI, SQLModel + SQLite WAL, Alembic, Redis + RQ SpawnWorker. Model transkripsi opsional.
 - Mode mock bawaan untuk demonstrasi tanpa API key; adaptor Gemini/Anthropic/Ollama nyata tersedia melalui .env.
-- Antarmuka form standar; Tailwind/shadcn dan design tokens akan diterapkan pada pekerjaan desain terpisah.
+- UI berikutnya memakai **Mantine 9.8.1** sesuai instruksi pengguna. Paket sudah dipasang dan dikunci bersama Tiptap 3.34.0 dan Embla 8.6.0; antarmuka saat ini tetap form standar. Provider, CSS, tema dan token diterapkan pada pekerjaan desain terpisah.
 - Struktur modul pipeline yang sudah ada dipertahankan. `media`, `llm`, `storage` adalah modul bersama; `planning`/`render` mengisi dasar kedua mode; `solver` khusus Ringkas. Tidak perlu memindah file demi menyamakan contoh folder pada prompt lama.
 
 ## Fase 0 — kerangka dan checkpoint fondasi
@@ -107,11 +107,29 @@ Perkuat editor caption/hook, render ulang, dan glosarium yang sudah ada; tambahk
 - [x] Tes backend/browser, build native/image produksi, smoke empat layanan Docker, migrasi salinan data lama, serta contoh video Indonesia.
 - [ ] Gate kualitas MVP: golden set manusia/provider nyata dan pemeriksaan sinkron ucapan manual ±100 ms belum tersedia.
 - [ ] Gate performa MVP: video Indonesia 60 menit → ≥5 klip dalam ≤15 menit pada Mac M-series belum diukur; mesin sesi ini Linux ARM64.
-- [ ] Pengguna memeriksa [checkpoint Fase 4](docs/phase-4-review.md). Berhenti sebelum Fase 5.
+- [x] Setelah [checkpoint Fase 4](docs/phase-4-review.md), pengguna meminta kelanjutan PR pekerjaan. Awal Fase 5 dibatasi ke daftar bab/paket Ringkas yang ringan.
 
 ## Fase 5 — Ringkas produksi
 
 Perluas workflow outline/solver/render yang sudah ada dengan beat visual, vision, spesifikasi wajib, koherensi, timelapse, kartu bab, dan daftar bab platform yang valid. Ukur recall bab dan durasi terhadap golden set. Berhenti untuk review.
+
+### Bagian awal — daftar bab dan paket Ringkas
+
+- [x] Garis waktu dari durasi segmen encode dan durasi MP4 akhir, terpisah dari estimasi solver.
+- [x] Indeks bab untuk tinjauan dan validasi teks YouTube: mulai 00:00, minimal tiga timestamp berurutan, setiap bab minimal 10 detik.
+- [x] Unduh indeks TXT/laporan JSON dan paket ZIP Ringkas; teks YouTube disertakan hanya ketika pemeriksaan format lolos.
+- [x] Hasil lama tetap terbaca dengan penanda waktu rencana yang belum diverifikasi.
+- [x] Uji API, media, browser, tipe dan build; rincian pada [review daftar bab Ringkas](docs/ringkas-chapters-review.md).
+- [x] Workflow anotasi manual Klip/Ringkas: siapkan sumber tanpa prediksi LLM, draft/review, revisi, validasi konflik dan ekspor paket dengan jejak sumber/transkrip.
+- [x] Evaluator Ringkas memakai cakupan rentang sumber yang benar-benar dirender, recall bab/spesifikasi, serta deviasi durasi. Anotasi assisted, demo dan mock dipisahkan dari kualitas independen.
+- [x] Fondasi fokus spasial Klip: area manual dan proposal aktivitas lokal opsional, fallback aman, jejak frame dan QC. Bukan pengenalan tangan/objek atau pemilihan beat visual Ringkas.
+- [x] Ringkas opsional memakai beat bicara dan jeda transkrip ≥1,5 detik, dipotong pada perubahan adegan sampel/maksimal 20 detik; aktivitas lokal 2 fps sebagai petunjuk.
+- [x] Sampling 5/15 detik dan adaptor gambar Gemini/Anthropic/Ollama, budget sebelum LLM, cache per tahap, laporan frame yang dapat ditinjau. Sampel 512 px atau 1024 px untuk layar; belum mengukur kualitas vision nyata.
+- [x] Anotasi label/spec verbatim dan outline berdasarkan ID beat. Kode menjaga spesifikasi, instruksi pertama, hasil dan visual yang belum jelas; pengguna tetap meninjau sebelum render.
+- [ ] Pengisian dan pengukuran dataset manusia: 10 sumber Klip dan 5 sumber Ringkas unik dengan provider nyata.
+- [ ] Pelacakan aksi/tangan/objek sepanjang adegan, video sepenuhnya tanpa transkrip, timelapse, koherensi dan kartu bab. Fase 5 belum selesai.
+
+Checkpoint sebelumnya: [anotasi, fokus visual dan pilihan Mantine](docs/annotation-vision-review.md), disetujui pengguna. Checkpoint saat ini: [beat visual dan vision Ringkas](docs/ringkas-vision-review.md). Berhenti untuk tinjauan sebelum menambah timelapse/koherensi.
 
 ## Fase 6
 

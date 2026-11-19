@@ -1,4 +1,21 @@
-.PHONY: install install-transcription dev test lint build e2e types migrate sample eval eval-fixtures update-ytdlp validate-ingest
+.DEFAULT_GOAL := help
+.PHONY: help doctor install install-transcription dev test lint build e2e types migrate sample eval eval-fixtures update-ytdlp validate-ingest
+help:
+	@printf '%s\n' \
+	  'Cuplik — perintah lokal' \
+	  '  make doctor          Periksa dependensi lokal tanpa menjalankan aplikasi' \
+	  '  make install         Pasang dependensi backend dan web' \
+	  '  make dev             Jalankan aplikasi, API, worker, dan Redis' \
+	  '  make lint            Periksa Python dan TypeScript' \
+	  '  make test            Tes backend, termasuk render FFmpeg' \
+	  '  make e2e             Uji browser dan workflow lengkap' \
+	  '  make build           Build produksi web' \
+	  '  make sample          Buat video sintetis untuk uji unggah' \
+	  '  make types           Perbarui OpenAPI dan tipe frontend' \
+	  '  make eval            Evaluasi dataset beranotasi jika tersedia' \
+	  '  Panduan tinjauan: docs/quick-review.md'
+doctor:
+	python3 scripts/check_setup.py
 install:
 	uv sync --locked
 	npm ci --prefix web

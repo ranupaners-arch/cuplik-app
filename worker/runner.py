@@ -8,14 +8,17 @@ from api.app.db import get_engine
 from api.app.jobs import emit
 from api.app.models import Beat, Chapter, Clip, Output, Project
 from api.app.schemas import OutlinePlan, OutputSettings, Transcript
+from worker.pipeline.chapters import write_chapter_export
 from worker.pipeline.ingest import ingest_project as ingest_project
 from worker.pipeline.llm import LLMClient
 from worker.pipeline.media import probe_file
 from worker.pipeline.planning import validate_outline
+from worker.pipeline.provenance import project_snapshot
 from worker.pipeline.render import clip_fingerprint, render_clip, render_condensed
 from worker.pipeline.selection import liked_examples, select_clips
 from worker.pipeline.signals import build_signals
-from worker.pipeline.storage import file_lock, output_dir, project_dir
+from worker.pipeline.storage import atomic_json, file_lock, output_dir, project_dir
+from worker.pipeline.vision import VALUES, plan_visual_outline
 
 logger = logging.getLogger(__name__)
 
@@ -78,6 +81,7 @@ def _select_clips(
                 platform=settings.platform,
                 layout=settings.layout,
                 retention=settings.retention.model_dump(),
+                visual_focus=settings.visual_focus.model_dump(),
                 description=c.description,
                 hashtags=c.hashtags,
                 keywords=c.keywords,
@@ -101,11 +105,82 @@ def _select_clips(
     session.commit()
 
 
-def _outline(output: Output, transcript: Transcript, session: Session, client: LLMClient):
+def _outline(
+    output: Output, transcript: Transcript, session: Session, client: LLMClient, ctx: StageContext
+):
     output.provider = client.settings.llm_provider
     session.add(output)
     session.commit()
     directory = output_dir(output.id)
+    if OutputSettings.model_validate(output.settings).condense_vision.enabled:
+        project = session.get(Project, output.project_id)
+        plan, annotations, frames, report = plan_visual_outline(
+            output,
+            project_dir(output.project_id) / "source.mp4",
+            transcript,
+            project.duration_s,
+            client,
+            ctx.progress,
+        )
+        atomic_json(directory / "vision.json", report.model_dump())
+        for index, (item, members) in enumerate(plan, 1):
+            chapter = Chapter(
+                output_id=output.id,
+                order=index,
+                title=item.title,
+                goal=item.goal,
+                importance=item.importance,
+                required=item.importance == "core",
+            )
+            session.add(chapter)
+            session.flush()
+            required = set(item.required_beat_ids)
+            first_step = next(
+                (b.id for b in members if annotations[b.id].label == "step"), members[0].id
+            )
+            required.add(first_step)
+            first_result = next(
+                (
+                    b.id
+                    for b in members
+                    if annotations[b.id].label == "result" and b.end_s - b.start_s >= 2
+                ),
+                None,
+            )
+            if first_result:
+                required.add(first_result)
+            for draft in members:
+                annotation = annotations[draft.id]
+                uncertain = annotation.uncertain or any(f.uncertain for f in frames[draft.id])
+                protected = (
+                    draft.id in required
+                    or bool(annotation.specs)
+                    or annotation.label == "spec"
+                    or (draft.kind == "visual" and uncertain)
+                )
+                session.add(
+                    Beat(
+                        output_id=output.id,
+                        chapter_id=chapter.id,
+                        sentence_id=draft.sentence_id,
+                        start_s=draft.start_s,
+                        end_s=draft.end_s,
+                        text=draft.text,
+                        kind=draft.kind,
+                        label=annotation.label,
+                        importance=VALUES[annotation.label],
+                        required=protected,
+                        visual_desc=" | ".join(f.action for f in frames[draft.id]),
+                        evidence={
+                            **annotation.model_dump(),
+                            "activity": draft.activity,
+                            "uncertain": uncertain,
+                            "frame_ids": [f.id for f in frames[draft.id]],
+                        },
+                    )
+                )
+        session.commit()
+        return
     plan = client.call_json(
         "outline",
         {
@@ -173,6 +248,22 @@ def _run_output(output_id: str, render_only: bool = False, clip_id: str | None =
             )
             with Session(get_engine()) as session:
                 output = session.get(Output, output_id)
+                snapshot, _ = project_snapshot(project_id)
+                if output.provenance and output.provenance != snapshot:
+                    raise ValueError(
+                        "Sumber atau transkrip berubah sejak rencana output dibuat. Buat output baru agar hasil tidak memakai rencana lama."
+                    )
+                has_plan = (
+                    session.exec(select(Clip.id).where(Clip.output_id == output_id)).first()
+                    if mode == "clips"
+                    else session.exec(
+                        select(Chapter.id).where(Chapter.output_id == output_id)
+                    ).first()
+                )
+                if not output.provenance and not has_plan:
+                    output.provenance = snapshot
+                    session.add(output)
+                    session.commit()
                 client = LLMClient()
                 if mode == "clips":
                     clips = session.exec(
@@ -208,7 +299,7 @@ def _run_output(output_id: str, render_only: bool = False, clip_id: str | None =
                     ).all()
                     if not chapters:
                         ctx.progress("outline", 0.2, "Menyusun bab dari transkrip untuk ditinjau")
-                        _outline(output, transcript, session, client)
+                        _outline(output, transcript, session, client, ctx)
                     if not render_only:
                         ctx.progress(
                             "review",
@@ -235,15 +326,7 @@ def _run_output(output_id: str, render_only: bool = False, clip_id: str | None =
                         .where(Chapter.output_id == output_id)
                         .order_by(Chapter.order)
                     ).all()
-                    elapsed = 0.0
-                    lines = []
-                    for chapter in chapters:
-                        if chapter.kept_s > 0:
-                            lines.append(
-                                f"{int(elapsed) // 60:02d}:{int(elapsed) % 60:02d} {chapter.title}"
-                            )
-                            elapsed += chapter.kept_s
-                    (directory / "chapters.txt").write_text("\n".join(lines), encoding="utf-8")
+                    write_chapter_export(directory, list(chapters))
             ctx.progress("done", 1, "Selesai; hasil siap diputar dan diunduh", status="done")
         except Exception as exc:
             logger.exception("Output %s failed", output_id)

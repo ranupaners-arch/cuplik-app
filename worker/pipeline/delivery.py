@@ -11,12 +11,14 @@ def effective_layout(clip):
 
 def inspect_delivery(clip, framing, duration):
     short = clip.platform != "youtube"
+    focus = getattr(framing, "focus", {})
     valid = not short or (framing.width * 16 == framing.height * 9 and duration <= 180.001)
     notes = []
     if (
         short
         and framing.content_kind == "screen_or_slides"
         and framing.source_width > framing.source_height
+        and not focus.get("applied")
     ):
         notes.append(
             "Rekaman layar lebar dimuat utuh dalam bingkai vertikal. Periksa keterbacaan menu/nilai; pilih video YouTube dengan rasio sumber jika detail terlalu kecil."
@@ -25,6 +27,8 @@ def inspect_delivery(clip, framing, duration):
         notes.append(
             "Periksa urutan langkah dan detail demonstrasi. Kelengkapan tutorial belum diverifikasi otomatis."
         )
+    if focus:
+        notes.append(focus["reason"])
     return {
         "purpose": clip.purpose,
         "platform": clip.platform,

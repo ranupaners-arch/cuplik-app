@@ -18,6 +18,7 @@ export function ClipEditor({ clip, data, disabled, perform }: { clip: Clip; data
     purpose: clip.purpose as ClipControlsValue["purpose"], platform: clip.platform as ClipControlsValue["platform"],
     layout: (clip.layout === "center" ? "auto" : clip.layout) as ClipControlsValue["layout"],
     captions: clip.captions, retention: { ...profile("discovery", true), ...clip.retention },
+    visual_focus: { mode: "safe", ...clip.visual_focus } as ClipControlsValue["visual_focus"],
   }));
   const [texts, setTexts] = useState<Record<string, string>>({ ...clip.caption_overrides });
   const [ratingNote, setRatingNote] = useState(clip.rating_note);

@@ -56,8 +56,37 @@ export function OutputPage({ id }: { id: string }) {
     {error && <p role="alert" className="error">{error}</p>}
     {output.mode === "clips" && data.clips.map(clip => <ClipEditor key={`${clip.id}:${clip.render_fingerprint}`} clip={clip} data={data} disabled={busy || running} perform={perform} />)}
     {output.mode === "clips" && data.clips.length > 0 && <p><a href={`/api/projects/${project.id}/signals`} target="_blank" rel="noreferrer">Data Moment IQ (JSON)</a> · <a href={`/api/outputs/${id}/selection`} target="_blank" rel="noreferrer">Laporan pemilihan dan keragaman (JSON)</a></p>}
+    {data.vision_report && <details><summary>Bukti visual Ringkas</summary>
+      <p>{data.vision_report.provider} · {data.vision_report.vision_model} · {data.vision_report.frame_count} frame · {data.vision_report.speech_beats} beat bicara · {data.vision_report.visual_beats} beat visual.</p>
+      <ul>{data.vision_report.notes.map((note, index) => <li key={index}>{note}</li>)}</ul>
+      <p><a href={`/api/outputs/${id}/vision`} target="_blank" rel="noreferrer">Laporan seluruh frame (JSON)</a></p>
+      <ol>{data.vision_report.frames.slice(0, 12).map(frame => <li key={frame.id}>
+        <p>{frame.id} · {frame.time_s.toFixed(2)} detik sumber · {frame.beat_id}{frame.uncertain ? " · perlu ditinjau" : ""}</p>
+        <a href={frame.url} target="_blank" rel="noreferrer"><img src={frame.url} alt={frame.action} width={frame.width} height={frame.height} loading="lazy" style={{ maxWidth: "100%", height: "auto" }} /></a>
+        <p>{frame.action}</p>{frame.screen_text && <p>Teks terlihat: {frame.screen_text}</p>}
+        {(frame.objects?.length ?? 0) > 0 && <p>Objek menurut provider: {frame.objects?.join(", ")}</p>}
+        {frame.hands_visible != null && <p>Tangan menurut provider: {frame.hands_visible ? "terlihat" : "tidak terlihat"}.</p>}
+      </li>)}</ol>
+      {data.vision_report.frame_count > 12 && <p>Menampilkan 12 frame pertama. Seluruh bukti tersedia pada laporan JSON.</p>}
+    </details>}
     {output.mode === "condense" && output.status === "awaiting_review" && <OutlineEditor data={data} disabled={busy} perform={perform} />}
-    {output.mode === "condense" && output.status === "done" && <section><h2>Video ringkasan</h2><p>Durasi render: {output.actual_duration_s?.toFixed(2)} detik</p><video controls preload="metadata" src={`/api/outputs/${id}/file`} width={720} /><a href={`/api/outputs/${id}/file`} download>Unduh ringkasan MP4</a></section>}
+    {output.mode === "condense" && output.status === "done" && <section>
+      <h2>Video ringkasan</h2><p>Durasi render: {output.actual_duration_s?.toFixed(2)} detik</p>
+      <video controls preload="metadata" src={`/api/outputs/${id}/file`} width={720} />
+      <a href={`/api/outputs/${id}/file`} download>Unduh ringkasan MP4</a>
+      {data.chapter_export && <details>
+        <summary>Daftar bab dan unduhan</summary>
+        <p>{data.chapter_export.timing_source === "encoded_parts" ? "Waktu bab mengikuti durasi segmen hasil render." : "Indeks lama memakai durasi rencana; waktu terhadap video belum diverifikasi."}</p>
+        <p>{data.chapter_export.youtube_valid ? "Format timestamp memenuhi pemeriksaan untuk deskripsi YouTube." : "Indeks bab tersedia untuk tinjauan. Versi YouTube belum memenuhi pemeriksaan format."}</p>
+        {(data.chapter_export.reasons?.length ?? 0) > 0 && <ul>{(data.chapter_export.reasons ?? []).map((reason, index) => <li key={index}>{reason}</li>)}</ul>}
+        {data.chapter_export.index_text && <>
+          <pre tabIndex={0} role="region" aria-label="Indeks bab hasil render">{data.chapter_export.index_text}</pre>
+          <p><a href={`/api/outputs/${id}/chapters.txt`} download>Unduh indeks bab (TXT)</a></p>
+        </>}
+        {data.chapter_export.youtube_valid && <p><a href={`/api/outputs/${id}/chapters.txt?format=youtube`} download>Unduh bab untuk YouTube (TXT)</a></p>}
+        <p><a href={`/api/outputs/${id}/chapters`} target="_blank" rel="noreferrer">Laporan pemeriksaan bab (JSON)</a></p>
+      </details>}
+    </section>}
     {output.status === "done" && <p><a href={`/api/outputs/${id}/export.zip`} download>Unduh semua hasil (ZIP)</a></p>}
     <p><Link href={`/projects/${project.id}`}>Buat output lain memakai sumber dan transkrip ini</Link></p>
   </>;
@@ -70,12 +99,22 @@ function OutlineEditor({ data, disabled, perform }: { data: Detail; disabled: bo
   const [choices, setChoices] = useState<Record<string, boolean>>(() => Object.fromEntries(data.chapters.map(c => [c.id, c.required ?? true])));
   const [plan, setPlan] = useState<{ actual_duration_s: number; within_tolerance: boolean } | null>(null);
   const chapters = data.chapters.map(c => ({ id: c.id, required: choices[c.id] }));
-  return <section><h2>Tinjau bab Ringkas</h2><p>Fondasi Ringkas memakai transkrip percakapan. Analisis visual untuk tutorial tanpa suara belum tersedia.</p><form onSubmit={e => { e.preventDefault(); void perform(() => api(`/outputs/${data.output.id}/outline`, { method: "PUT", body: JSON.stringify({ chapters, target_seconds: target }) })); }}><fieldset disabled={disabled}><legend>Bab wajib dan durasi</legend>
+  const usingVision = Boolean(data.vision_report) || data.beats.some(beat => Array.isArray(beat.evidence?.frame_ids));
+  return <section><h2>Tinjau bab Ringkas</h2><p>{usingVision ? "Outline menggabungkan transkrip dan sampel visual. Tonton sumber dan periksa spesifikasi serta langkah yang belum jelas sebelum menyetujui." : "Outline memakai transkrip. Pilih vision pada output baru untuk memasukkan jeda demonstrasi di luar kalimat."}</p><p><a href={`/api/projects/${data.project.id}/source`} target="_blank" rel="noreferrer">Tonton sumber asli untuk meninjau langkah</a></p>{usingVision && !data.vision_report && <p>Laporan frame tidak tersedia. Periksa bukti per beat dan sumber asli sebelum menyetujui.</p>}<form onSubmit={e => { e.preventDefault(); void perform(() => api(`/outputs/${data.output.id}/outline`, { method: "PUT", body: JSON.stringify({ chapters, target_seconds: target }) })); }}><fieldset disabled={disabled}><legend>Bab wajib dan durasi</legend>
     {data.chapters.map(chapter => <label key={chapter.id}><input type="checkbox" checked={choices[chapter.id]} onChange={e => setChoices({ ...choices, [chapter.id]: e.target.checked })} />{chapter.title} · {chapter.goal}</label>)}
     <label>Target durasi (detik)<input type="number" min={3} max={3600} value={target} onChange={e => setTarget(Number(e.target.value))} /></label>
     <div className="row"><button type="button" onClick={() => perform(async () => setPlan(await post(`/outputs/${data.output.id}/solve`, { target_seconds: target, chapters })))}>Hitung durasi tanpa render</button><button type="submit">Setujui bab dan render Ringkas</button></div>
     {plan && <p role="status">Rencana hasil: {plan.actual_duration_s.toFixed(2)} detik. {plan.within_tolerance ? "Dalam toleransi target ±3%." : "Durasi terdekat lebih pendek dari target; semua konten terpilih tetap dipertahankan."}</p>}
   </fieldset></form>
-  <details><summary>Keputusan per kalimat</summary>{data.beats.map(beat => <div key={beat.id}><p>{beat.sentence_id}: {beat.text}{beat.required ? " · penanda wajib bab" : ""}</p><label>Keputusan {beat.sentence_id}<select disabled={disabled} value={beat.decision} onChange={e => { const decision = e.target.value; void perform(() => patch(`/beats/${beat.id}`, { decision, speed: 1.15, locked: true })); }}><option value="keep">Normal</option><option value="speed">Percepat 1,15×</option><option value="drop" disabled={beat.required && choices[beat.chapter_id]}>Buang</option></select></label>{beat.locked && <button disabled={disabled} onClick={() => perform(() => patch(`/beats/${beat.id}`, { decision: beat.decision, speed: beat.speed, locked: false }))}>Buka kunci {beat.sentence_id}</button>}</div>)}</details>
+  <details><summary>Keputusan per beat</summary>{data.beats.map(beat => {
+    const name = typeof beat.evidence?.id === "string" ? beat.evidence.id : beat.sentence_id || beat.id.slice(0, 8);
+    const specs = Array.isArray(beat.evidence?.specs) ? beat.evidence.specs : [];
+    return <div key={beat.id}>
+      <p>{name} · {beat.start_s.toFixed(2)}–{beat.end_s.toFixed(2)} detik · {beat.kind} · {beat.label}{beat.required ? " · penanda wajib bab" : ""}{beat.evidence?.uncertain === true ? " · perlu ditinjau" : ""}</p>
+      {beat.text && <p>{beat.text}</p>}{beat.visual_desc && <p>Visual: {beat.visual_desc}</p>}{specs.length > 0 && <p>Spesifikasi: {specs.join(", ")}</p>}
+      <label htmlFor={`decision-${beat.id}`}>Keputusan {name}</label><select id={`decision-${beat.id}`} disabled={disabled} value={beat.decision} onChange={e => { const decision = e.target.value; void perform(() => patch(`/beats/${beat.id}`, { decision, speed: 1.15, locked: true })); }}><option value="keep">Normal</option><option value="speed">Percepat 1,15×</option><option value="drop" disabled={beat.required && choices[beat.chapter_id]}>Buang</option></select>
+      {beat.locked && <button type="button" disabled={disabled} onClick={() => perform(() => patch(`/beats/${beat.id}`, { decision: beat.decision, speed: beat.speed, locked: false }))}>Buka kunci {name}</button>}
+    </div>;
+  })}</details>
   </section>;
 }

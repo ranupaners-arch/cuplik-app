@@ -76,6 +76,7 @@ def test_condense_review_infeasible_target_locked_beats_and_render(client, proje
     run_output(output_id)
     detail = client.get(f"/api/outputs/{output_id}").json()
     assert detail["output"]["status"] == "awaiting_review"
+    assert client.get(f"/api/outputs/{output_id}/chapters").status_code == 409
     assert not (get_settings().storage / "outputs" / output_id / "condensed.mp4").exists()
     chapters = [{"id": c["id"], "required": True} for c in detail["chapters"]]
     response = client.put(
@@ -113,6 +114,25 @@ def test_condense_review_infeasible_target_locked_beats_and_render(client, proje
         "duration_s"
     ]
     assert abs(actual - 8) < 0.4
+    detail = client.get(f"/api/outputs/{output_id}").json()
+    package = detail["chapter_export"]
+    assert package["timing_source"] == "encoded_parts"
+    assert package["duration_s"] == actual
+    assert not package["youtube_valid"]
+    assert client.get(f"/api/outputs/{output_id}/chapters.txt").status_code == 200
+    assert client.get(f"/api/outputs/{output_id}/chapters.txt?format=youtube").status_code == 409
+    import io
+
+    with zipfile.ZipFile(
+        io.BytesIO(client.get(f"/api/outputs/{output_id}/export.zip").content)
+    ) as archive:
+        assert {"condensed.mp4", "chapters.txt", "chapters.json", "condensed.timeline.json"} <= set(
+            archive.namelist()
+        )
+        assert "youtube-chapters.txt" not in archive.namelist()
+        timeline = json.loads(archive.read("condensed.timeline.json"))
+        assert timeline["spans"][0]["output_start_s"] == 0
+        assert timeline["spans"][-1]["output_end_s"] == actual
 
 
 def test_sse_replay_after_terminal_and_reconnect_cursor(client, project):

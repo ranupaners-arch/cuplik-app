@@ -46,6 +46,7 @@ class FramingPlan:
     analyzer: str = (
         "OpenCV YuNet 2026may neural face detector + text/edge heuristics; local, no cloud LLM"
     )
+    focus: dict = field(default_factory=dict)
 
     def model_dump(self):
         return asdict(self)

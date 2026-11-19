@@ -128,4 +128,88 @@ def test_phase_two_upgrade_preserves_populated_clip(client, tmp_path):
         assert db.execute(
             "SELECT score,file_path,selection FROM clip WHERE id='old-clip'"
         ).fetchone() == (8, "outputs/old-output/old-clip.mp4", "{}")
+        assert db.execute("SELECT visual_focus FROM clip WHERE id='old-clip'").fetchone() == ("{}",)
+        assert db.execute("SELECT provenance FROM output WHERE id='old-output'").fetchone() == (
+            "{}",
+        )
+        assert db.execute("PRAGMA foreign_key_check").fetchall() == []
+
+
+def test_visual_evidence_upgrade_preserves_reviewed_legacy_beats(client, tmp_path):
+    import json
+    from datetime import datetime
+
+    from api.app.models import Beat, Chapter, Output, Project
+
+    directory = tmp_path / "before-vision"
+    directory.mkdir()
+    env = {**os.environ, "DATA_DIR": str(directory)}
+    subprocess.run(
+        [sys.executable, "-m", "alembic", "upgrade", "d58107a2c930"],
+        cwd=ROOT,
+        env=env,
+        check=True,
+        capture_output=True,
+    )
+    database = directory / "cuplik.sqlite3"
+    rows = [
+        ("project", Project(id="p", title="Legacy", source_kind="demo")),
+        ("output", Output(id="o", project_id="p", mode="condense", status="awaiting_review")),
+        (
+            "chapter",
+            Chapter(
+                id="c",
+                output_id="o",
+                order=1,
+                title="Langkah lama",
+                goal="Tetap utuh",
+                importance="core",
+            ),
+        ),
+        (
+            "beat",
+            Beat(
+                id="b",
+                output_id="o",
+                chapter_id="c",
+                sentence_id="s1",
+                start_s=0,
+                end_s=4,
+                text="Atur 120 mm.",
+                required=True,
+                decision="speed",
+                speed=1.1,
+                locked=True,
+            ),
+        ),
+    ]
+    with sqlite3.connect(database) as db:
+        db.execute("PRAGMA foreign_keys=ON")
+        for table, row in rows:
+            columns = [r[1] for r in db.execute(f"PRAGMA table_info({table})")]
+            quoted_columns = ", ".join(f'"{name}"' for name in columns)
+            data = row.model_dump()
+            values = [
+                json.dumps(data[c])
+                if isinstance(data[c], (dict, list))
+                else str(data[c])
+                if isinstance(data[c], datetime)
+                else data[c]
+                for c in columns
+            ]
+            db.execute(
+                f'INSERT INTO "{table}" ({quoted_columns}) VALUES ({",".join("?" for _ in columns)})',
+                values,
+            )
+    subprocess.run(
+        [sys.executable, "-m", "alembic", "upgrade", "head"],
+        cwd=ROOT,
+        env=env,
+        check=True,
+        capture_output=True,
+    )
+    with sqlite3.connect(database) as db:
+        assert db.execute(
+            "SELECT text,required,decision,speed,locked,evidence FROM beat WHERE id='b'"
+        ).fetchone() == ("Atur 120 mm.", 1, "speed", 1.1, 1, "{}")
         assert db.execute("PRAGMA foreign_key_check").fetchall() == []

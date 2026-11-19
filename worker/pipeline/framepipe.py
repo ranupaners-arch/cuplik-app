@@ -274,6 +274,7 @@ def encode_clip(
         "detections": tracker.detections,
         "blur_frames": sum(f["mode"] == "blur_fit" for f in trace),
         "scene_cuts": sum(f["scene_cut"] for f in trace),
+        "focus_frames": sum(f["mode"] == "region_focus" for f in trace),
         "elapsed_s": round(time.monotonic() - started, 3),
     }
     atomic_json(trace_path, {"summary": summary, "framing": framing.model_dump(), "frames": trace})

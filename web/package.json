@@ -2,7 +2,9 @@
   "name": "cuplik-web",
   "version": "0.1.0",
   "private": true,
-  "engines": { "node": ">=22.12" },
+  "engines": {
+    "node": ">=22.12"
+  },
   "scripts": {
     "dev": "next dev --hostname 127.0.0.1",
     "build": "next build",
@@ -11,9 +13,32 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
+    "@mantine/carousel": "9.8.1",
+    "@mantine/charts": "9.8.1",
+    "@mantine/code-highlight": "9.8.1",
+    "@mantine/core": "9.8.1",
+    "@mantine/dates": "9.8.1",
+    "@mantine/dropzone": "9.8.1",
+    "@mantine/emoji": "9.8.1",
+    "@mantine/form": "9.8.1",
+    "@mantine/hooks": "9.8.1",
+    "@mantine/lightbox": "9.8.1",
+    "@mantine/modals": "9.8.1",
+    "@mantine/notifications": "9.8.1",
+    "@mantine/nprogress": "9.8.1",
+    "@mantine/spotlight": "9.8.1",
+    "@mantine/tiptap": "9.8.1",
+    "@tiptap/extension-link": "3.34.0",
+    "@tiptap/pm": "3.34.0",
+    "@tiptap/react": "3.34.0",
+    "@tiptap/starter-kit": "3.34.0",
+    "dayjs": "1.11.23",
+    "embla-carousel": "8.6.0",
+    "embla-carousel-react": "8.6.0",
     "next": "16.4.6",
     "react": "19.3.1",
-    "react-dom": "19.3.1"
+    "react-dom": "19.3.1",
+    "recharts": "3.11.0"
   },
   "devDependencies": {
     "@playwright/test": "1.65.1",

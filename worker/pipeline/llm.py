@@ -1,5 +1,7 @@
+import base64
 import json
 import time
+from dataclasses import dataclass
 from html import escape
 from pathlib import Path
 from typing import TypeVar
@@ -12,6 +14,15 @@ from api.app.config import ROOT, get_settings
 from api.app.schemas import Candidate, ChapterPlan, OutlinePlan, Ranking, Rubric, Selection
 
 T = TypeVar("T", bound=BaseModel)
+
+
+@dataclass(frozen=True)
+class LLMImage:
+    id: str
+    data: bytes
+
+    def encoded(self):
+        return base64.b64encode(self.data).decode("ascii")
 
 
 class LLMError(RuntimeError):
@@ -42,8 +53,17 @@ class LLMClient:
         self.usage: list[dict] = []
 
     def call_json(
-        self, name: str, variables: dict, schema: type[T], log_path: Path | None = None
+        self,
+        name: str,
+        variables: dict,
+        schema: type[T],
+        log_path: Path | None = None,
+        *,
+        images: list[LLMImage] | None = None,
+        model: str | None = None,
     ) -> T:
+        if images and (len(images) > 16 or sum(len(i.data) for i in images) > 12 * 1024**2):
+            raise LLMError("Batch vision melebihi batas 16 gambar atau 12 MiB.")
         if self.settings.llm_provider == "mock":
             result = schema.model_validate(self._mock(name, variables))
             record = {
@@ -52,23 +72,27 @@ class LLMClient:
                 "model": "deterministic-fixture",
                 "input_tokens": 0,
                 "output_tokens": 0,
+                "images": len(images or []),
             }
             self._record(record, log_path)
             return result
-        model = self.settings.llm_model_fast
+        model = model or self.settings.llm_model_fast
         if not model:
             raise LLMError(
                 "Isi LLM_MODEL_FAST di .env dengan model yang tersedia pada provider Anda."
             )
         system, user = render_messages(name, variables)
         for attempt in range(2):
-            content, usage = self._request(system, user, schema.model_json_schema())
+            content, usage = self._request(
+                system, user, schema.model_json_schema(), images=images, model=model
+            )
             self._record(
                 {
                     "prompt": name,
                     "provider": self.settings.llm_provider,
                     "model": model,
                     "repair": bool(attempt),
+                    "images": len(images or []),
                     **usage,
                 },
                 log_path,
@@ -96,10 +120,18 @@ class LLMClient:
             with path.open("a", encoding="utf-8") as handle:
                 handle.write(json.dumps(record) + "\n")
 
-    def _request(self, system: str, user: str, schema: dict) -> tuple[str, dict]:
+    def _request(
+        self,
+        system: str,
+        user: str,
+        schema: dict,
+        *,
+        images: list[LLMImage] | None = None,
+        model: str | None = None,
+    ) -> tuple[str, dict]:
         settings = self.settings
         provider = settings.llm_provider
-        model = settings.llm_model_fast
+        model = model or settings.llm_model_fast
         headers = {}
         if provider == "gemini":
             if not settings.gemini_api_key:
@@ -116,6 +148,13 @@ class LLMClient:
                     "responseJsonSchema": schema,
                 },
             }
+            for item in images or []:
+                payload["contents"][0]["parts"].extend(
+                    [
+                        {"text": f"Frame {item.id}:"},
+                        {"inlineData": {"mimeType": "image/jpeg", "data": item.encoded()}},
+                    ]
+                )
         elif provider == "anthropic":
             if not settings.anthropic_api_key:
                 raise LLMError("ANTHROPIC_API_KEY belum diisi pada server.")
@@ -135,6 +174,23 @@ class LLMClient:
                 ],
                 "tool_choice": {"type": "tool", "name": "structured_result"},
             }
+            if images:
+                blocks = []
+                for item in images:
+                    blocks.extend(
+                        [
+                            {"type": "text", "text": f"Frame {item.id}:"},
+                            {
+                                "type": "image",
+                                "source": {
+                                    "type": "base64",
+                                    "media_type": "image/jpeg",
+                                    "data": item.encoded(),
+                                },
+                            },
+                        ]
+                    )
+                payload["messages"][0]["content"] = [*blocks, {"type": "text", "text": user}]
         else:
             url = settings.ollama_base_url.rstrip("/") + "/api/chat"
             payload = {
@@ -145,8 +201,10 @@ class LLMClient:
                     {"role": "system", "content": system},
                     {"role": "user", "content": user},
                 ],
-                "options": {"temperature": 0.2, "num_ctx": 16384},
+                "options": {"temperature": 0.2, "num_ctx": settings.ollama_num_ctx},
             }
+            if images:
+                payload["messages"][1]["images"] = [item.encoded() for item in images]
         try:
             with httpx.Client(
                 transport=self.transport, timeout=settings.llm_timeout_seconds
@@ -199,6 +257,45 @@ class LLMClient:
     @staticmethod
     def _mock(name: str, variables: dict) -> dict:
         sentences = variables.get("sentences", [])
+        if name == "frame_describer":
+            return {
+                "frames": [
+                    {
+                        "id": f["id"],
+                        "action": "Fixture vision: isi gambar belum dinilai model nyata.",
+                        "uncertain": True,
+                    }
+                    for f in variables["frames"]
+                ]
+            }
+        if name == "beat_annotator":
+            return {
+                "beats": [
+                    {
+                        "id": b["id"],
+                        "label": "manual" if b["kind"] == "visual" else "step",
+                        "step_hint": "Langkah fixture",
+                        "specs": [],
+                        "uncertain": True,
+                    }
+                    for b in variables["beats"]
+                ]
+            }
+        if name == "outline_builder":
+            beats = variables["beats"]
+            return {
+                "chapters": [
+                    {
+                        "title": f"Langkah fixture {i // 3 + 1}",
+                        "goal": "Tinjau bukti sumber; outline mock tidak menilai gambar.",
+                        "start_id": beats[i]["id"],
+                        "end_id": beats[min(i + 2, len(beats) - 1)]["id"],
+                        "required_beat_ids": [beats[i]["id"]],
+                        "importance": "core",
+                    }
+                    for i in range(0, len(beats), 3)
+                ]
+            }
         if name == "moment_finder":
             sentences = variables["sentence_data"]
             candidates = []

@@ -1,9 +1,10 @@
-"""Evaluate annotated Klip ranges; synthetic fixtures never count as human quality data."""
+"""Evaluate human ranges for Klip/Ringkas; separate synthetic, assisted and unverified data."""
 
 import argparse
 import json
 from collections import Counter
 from pathlib import Path
+from typing import Literal
 
 from pydantic import Field, model_validator
 
@@ -34,6 +35,89 @@ class Expected(StrictModel):
     settings: OutputSettings = Field(default_factory=OutputSettings)
     annotator: str = ""
     note: str = ""
+    annotation_status: Literal["draft", "reviewed"] = "reviewed"
+    independent: bool = True
+    provenance: dict = Field(default_factory=dict)
+
+
+class CondenseExpected(StrictModel):
+    mode: Literal["condense"]
+    source: str
+    dataset_kind: Literal["human", "synthetic"] = "human"
+    transcript: str | None = None
+    settings: OutputSettings = Field(default_factory=OutputSettings)
+    required_chapters: list[Range] = Field(min_length=1)
+    required_specs: list[Range] = Field(default_factory=list)
+    annotator: str = ""
+    note: str = ""
+    annotation_status: Literal["draft", "reviewed"] = "reviewed"
+    independent: bool = True
+    provenance: dict = Field(default_factory=dict)
+
+
+class CondensePrediction(StrictModel):
+    mode: Literal["condense"] = "condense"
+    provider: str = "unspecified"
+    duration_s: float = Field(gt=0)
+    retained_ranges: list[Range]
+    provenance: dict = Field(default_factory=dict)
+
+
+def coverage_metrics(expected: list[Range], retained: list[Range], threshold: float):
+    covered = []
+    for gold in expected:
+        intervals = sorted(
+            (max(gold.start_s, p.start_s), min(gold.end_s, p.end_s))
+            for p in retained
+            if p.start_s < gold.end_s and p.end_s > gold.start_s
+        )
+        merged = []
+        for start, end in intervals:
+            if merged and start <= merged[-1][1]:
+                merged[-1] = (merged[-1][0], max(merged[-1][1], end))
+            else:
+                merged.append((start, end))
+        fraction = sum(b - a for a, b in merged) / (gold.end_s - gold.start_s)
+        covered.append(
+            {
+                "range": gold.model_dump(),
+                "coverage": min(1, fraction),
+                "matched": fraction >= threshold - 1e-6,
+            }
+        )
+    matched = sum(c["matched"] for c in covered)
+    return {
+        "expected": len(expected),
+        "matched": matched,
+        "recall": matched / len(expected) if expected else None,
+        "threshold": threshold,
+        "ranges": covered,
+    }
+
+
+def verify_inputs(expected, case: Path):
+    from worker.pipeline.ingest import checksum
+    from worker.pipeline.provenance import transcript_fingerprint
+
+    path = resolve_path(expected.source, case)
+    source_id, verified = str(path.resolve()), False
+    if path.is_file():
+        source_id = checksum(path)
+        if (
+            expected.provenance.get("source_sha256")
+            and source_id != expected.provenance["source_sha256"]
+        ):
+            raise ValueError("Checksum sumber tidak cocok dengan anotasi")
+        verified = True
+    transcript = None
+    if expected.transcript:
+        transcript = Transcript.model_validate_json(
+            resolve_path(expected.transcript, case).read_text()
+        )
+        claimed = expected.provenance.get("transcript_sha256")
+        if claimed and claimed != transcript_fingerprint(transcript):
+            raise ValueError("Transkrip berubah setelah anotasi")
+    return source_id, verified, transcript
 
 
 def range_metrics(expected: list[Range], predictions: list[Range], threshold=0.5):
@@ -112,6 +196,7 @@ def audit_predictions(data: dict):
         "baseline_clips": ranges(data.get("baseline_selected", [])),
         "provider": data.get("provider"),
         "selection_metrics": data.get("metrics", {}),
+        "provenance": data.get("provenance", {}),
     }
 
 
@@ -147,7 +232,14 @@ def run_case(expected: Expected, case: Path, work_root: Path):
         duration = probe_file(source)["duration_s"]
         signals = build_signals(directory, transcript, duration)
         select_clips(LLMClient(), transcript, signals, expected.settings, case.name, [], directory)
-        return json.loads((directory / "selection.json").read_text())
+        result = json.loads((directory / "selection.json").read_text())
+        from worker.pipeline.provenance import transcript_fingerprint
+
+        result["provenance"] = {
+            "source_sha256": checksum(source),
+            "transcript_sha256": transcript_fingerprint(transcript),
+        }
+        return result
 
 
 def resolve_path(value: str, case: Path):
@@ -170,21 +262,39 @@ def evaluate(
     for path in sorted(root.glob("*/expected.json")):
         try:
             raw = json.loads(path.read_text())
-            if raw.get("mode") == "condense":
-                cases.append({"case": path.parent.name, "status": "deferred_phase_5"})
+            if raw.get("annotation_status") == "draft":
+                cases.append(
+                    {"case": path.parent.name, "status": "not_run", "reason": "Anotasi masih draft"}
+                )
                 continue
-            expected = Expected.model_validate(raw)
-            if expected.mode != "clips" or expected.dataset_kind not in {"human", "synthetic"}:
+            expected = (
+                CondenseExpected.model_validate(raw)
+                if raw.get("mode") == "condense"
+                else Expected.model_validate(raw)
+            )
+            if expected.mode not in {"clips", "condense"} or expected.dataset_kind not in {
+                "human",
+                "synthetic",
+            }:
                 raise ValueError("mode atau dataset_kind tidak dikenal")
+            source_id, verified, transcript = verify_inputs(expected, path.parent)
             result = {
                 "case": path.parent.name,
+                "mode": expected.mode,
                 "dataset_kind": expected.dataset_kind,
                 "annotator": expected.annotator,
+                "independent": expected.independent,
+                "source_verified": verified,
+                "source_id": source_id,
             }
             prediction_path = (
                 predictions_root / path.parent.name if predictions_root else path.parent
             ) / "predictions.json"
             if run:
+                if expected.mode == "condense":
+                    raise ValueError(
+                        "Ringkas dinilai dari predictions.json hasil paket evaluasi; --run saat ini khusus Klip"
+                    )
                 predicted = run_case(expected, path.parent, work_root or ROOT / "data/eval")
             elif prediction_path.exists():
                 predicted = json.loads(prediction_path.read_text())
@@ -194,24 +304,60 @@ def evaluate(
                 if require_predictions:
                     errors.append(f"{path.parent.name}: prediksi tidak tersedia")
                 continue
-            predicted = audit_predictions(predicted)
-            after = [Range.model_validate(r) for r in predicted["clips"]]
-            result.update(
-                status="evaluated",
-                provider=predicted.get("provider", "unspecified"),
-                after_rerank=range_metrics(expected.ranges, after),
+            predicted = audit_predictions(predicted) if expected.mode == "clips" else predicted
+            for key in ("source_sha256", "transcript_sha256"):
+                gold = expected.provenance.get(key)
+                claimed = predicted.get("provenance", {}).get(key)
+                if gold and gold != claimed:
+                    raise ValueError("Jejak sumber/transkrip prediksi tidak cocok dengan anotasi")
+            if expected.mode == "clips":
+                after = [Range.model_validate(r) for r in predicted["clips"]]
+                result.update(after_rerank=range_metrics(expected.ranges, after))
+                if "baseline_clips" in predicted:
+                    before = [Range.model_validate(r) for r in predicted["baseline_clips"]]
+                    result["before_rerank"] = range_metrics(expected.ranges, before)
+                    result["recall_delta"] = (
+                        result["after_rerank"]["recall_iou_0_5"]
+                        - result["before_rerank"]["recall_iou_0_5"]
+                    )
+            else:
+                prediction = CondensePrediction.model_validate(predicted)
+                after = prediction.retained_ranges
+                result.update(
+                    chapter_recall=coverage_metrics(expected.required_chapters, after, 0.9),
+                    spec_recall=coverage_metrics(expected.required_specs, after, 0.99),
+                    duration_deviation_percent=(
+                        prediction.duration_s - expected.settings.target_seconds
+                    )
+                    / expected.settings.target_seconds
+                    * 100,
+                    within_target_tolerance=abs(
+                        prediction.duration_s - expected.settings.target_seconds
+                    )
+                    <= expected.settings.target_seconds * 0.03,
+                )
+            duration = expected.provenance.get("duration_s")
+            labels = (
+                expected.ranges
+                if expected.mode == "clips"
+                else [*expected.required_chapters, *expected.required_specs]
             )
-            if "baseline_clips" in predicted:
-                before = [Range.model_validate(r) for r in predicted["baseline_clips"]]
-                result["before_rerank"] = range_metrics(expected.ranges, before)
-                result["recall_delta"] = (
-                    result["after_rerank"]["recall_iou_0_5"]
-                    - result["before_rerank"]["recall_iou_0_5"]
-                )
-            if expected.transcript:
-                transcript = Transcript.model_validate_json(
-                    resolve_path(expected.transcript, path.parent).read_text()
-                )
+            if duration and any(r.end_s > duration + 0.001 for r in [*labels, *after]):
+                raise ValueError("Rentang anotasi/prediksi melebihi durasi sumber")
+            result.update(status="evaluated", provider=predicted.get("provider") or "unspecified")
+            excluded = []
+            if expected.dataset_kind != "human":
+                excluded.append("dataset_synthetic")
+            if not expected.annotator.strip():
+                excluded.append("annotator_missing")
+            if not expected.independent:
+                excluded.append("assisted_annotation")
+            if not verified:
+                excluded.append("source_unverified")
+            if result["provider"] not in {"gemini", "anthropic", "ollama"}:
+                excluded.append("provider_not_live")
+            result["quality_excluded_reasons"] = excluded
+            if transcript:
                 result["word_boundary_check"] = {
                     "status": "checked" if transcript.words else "unavailable_sentence_only",
                     "cuts_through_words": sum(
@@ -224,20 +370,32 @@ def evaluate(
         except (OSError, ValueError, KeyError, RuntimeError) as exc:
             errors.append(f"{path}: {exc}")
     evaluated = [c for c in cases if c.get("status") == "evaluated"]
-    quality = [
-        c
-        for c in evaluated
-        if c["dataset_kind"] == "human" and c["provider"] not in {"mock", "unspecified"}
-    ]
-    matched = sum(c["after_rerank"]["matched"] for c in quality)
-    total = sum(c["after_rerank"]["expected"] for c in quality)
+    quality = [c for c in evaluated if not c["quality_excluded_reasons"]]
+    clip_quality = [c for c in quality if c["mode"] == "clips"]
+    condense_quality = [c for c in quality if c["mode"] == "condense"]
+    matched = sum(c["after_rerank"]["matched"] for c in clip_quality)
+    total = sum(c["after_rerank"]["expected"] for c in clip_quality)
+    chapter_total = sum(c["chapter_recall"]["expected"] for c in condense_quality)
+    spec_total = sum(c["spec_recall"]["expected"] for c in condense_quality)
+    clips_count = len({c["source_id"] for c in clip_quality})
+    condense_count = len({c["source_id"] for c in condense_quality})
     return {
-        "phase": 2,
+        "phase": 5,
         "status": "error" if errors else "evaluated" if evaluated else "not_run",
         "quality_status": "measured" if quality else "not_run",
-        "quality_videos": len(quality),
+        "quality_videos": clips_count,
+        "quality_condense_videos": condense_count,
+        "quality_targets_met": {"clips": clips_count >= 10, "condense": condense_count >= 5},
         "quality_recall_iou_0_5": matched / total if total else None,
-        "note": "Mock dan fixture sintetis hanya memeriksa mekanisme. Target golden set: 10 video Klip beranotasi manusia dengan provider nyata; belum dipenuhi jika quality_videos < 10.",
+        "quality_chapter_recall": sum(c["chapter_recall"]["matched"] for c in condense_quality)
+        / chapter_total
+        if chapter_total
+        else None,
+        "quality_spec_recall": sum(c["spec_recall"]["matched"] for c in condense_quality)
+        / spec_total
+        if spec_total
+        else None,
+        "note": "Target: 10 sumber Klip dan 5 sumber Ringkas unik, ditinjau manusia secara independen dengan provider nyata. Draft, assisted, sumber tidak terverifikasi, mock dan fixture sintetis tidak masuk agregat kualitas.",
         "cases": cases,
         "errors": errors,
     }

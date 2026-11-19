@@ -1,0 +1,3 @@
+Language: {{ language }}
+The attached images are in the SAME order as this manifest. Each image is labelled with its ID. Analyze every image, including ambiguous ones.
+<frames>{{ frames | tojson }}</frames>
