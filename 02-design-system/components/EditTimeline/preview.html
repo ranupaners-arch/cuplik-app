@@ -1,0 +1,25 @@
+<!-- @dsCard group="Ringkas" height=300 subtitle="Keputusan normal / percepat / buang per beat" -->
+<!doctype html><html><head><link rel="stylesheet" href="../../tokens.css"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap"><style>body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font-sans);font-size:15px;line-height:22px}
+.w{padding:var(--space-6)}
+.hd{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:var(--space-3)}
+.hd b{font-size:15px}.tot{font:500 13px var(--font-mono);color:var(--ink-muted)}.tot em{font-style:normal;color:var(--score-high);font-weight:700}
+.ch{display:grid;grid-template-columns:150px 1fr 64px;gap:var(--space-3);align-items:center;padding:6px 0;border-bottom:1px solid var(--line)}
+.n{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.t{font:500 12px var(--font-mono);color:var(--ink-muted);text-align:right}
+.bar{display:flex;gap:2px;height:22px}
+.b{border-radius:3px;position:relative}
+.k{background:var(--score-high)}
+.s{background:repeating-linear-gradient(135deg,var(--brand) 0 5px,color-mix(in srgb,var(--brand) 55%,transparent) 5px 9px)}
+.d{background:var(--surface-raised);border:1px solid var(--line);box-sizing:border-box}
+.req::after{content:"";position:absolute;top:-5px;left:50%;width:6px;height:6px;margin-left:-3px;border-radius:50%;background:var(--ink)}
+.lock{outline:2px solid var(--focus);outline-offset:1px}
+.lg{display:flex;gap:var(--space-4);margin-top:var(--space-4);font-size:12px;color:var(--ink-muted)}
+.lg i{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-2px;margin-right:6px}
+</style></head><body><div class="w">
+<div class="hd"><b>Hasil ringkasan</b><span class="tot">2:04:18 → <em>10:06</em> · target 10:00 ±3%</span></div>
+<div class="ch"><span class="n">1 Siapkan bahan</span><div class="bar"><span class="b k req" style="flex:3"></span><span class="b d" style="flex:6"></span><span class="b k" style="flex:2"></span><span class="b d" style="flex:4"></span></div><span class="t">0:48</span></div>
+<div class="ch"><span class="n">2 Potong papan</span><div class="bar"><span class="b k req" style="flex:2"></span><span class="b s" style="flex:9"></span><span class="b k req" style="flex:2"></span><span class="b d" style="flex:3"></span></div><span class="t">1:52</span></div>
+<div class="ch"><span class="n">3 Amplas permukaan</span><div class="bar"><span class="b k req" style="flex:2"></span><span class="b s lock" style="flex:12"></span><span class="b d" style="flex:5"></span><span class="b k req" style="flex:2"></span></div><span class="t">1:31</span></div>
+<div class="ch"><span class="n">4 Rakit &amp; lem</span><div class="bar"><span class="b k req" style="flex:4"></span><span class="b k" style="flex:3"></span><span class="b s" style="flex:6"></span><span class="b d" style="flex:7"></span><span class="b k req" style="flex:2"></span></div><span class="t">2:40</span></div>
+<div class="lg"><span><i class="k"></i>Normal</span><span><i class="s"></i>Dipercepat</span><span><i class="d"></i>Dibuang</span><span>● Wajib</span><span><i style="outline:2px solid var(--focus)"></i>Dikunci</span></div>
+</div></body></html>

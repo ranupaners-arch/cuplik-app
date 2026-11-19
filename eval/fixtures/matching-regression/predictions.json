@@ -1,0 +1,11 @@
+{
+  "provider": "mock",
+  "baseline_clips": [
+    {"start_s": 10, "end_s": 30, "topic": "modal usaha"},
+    {"start_s": 11, "end_s": 31, "topic": "modal usaha"}
+  ],
+  "clips": [
+    {"start_s": 10, "end_s": 30, "topic": "modal usaha"},
+    {"start_s": 50, "end_s": 70, "topic": "catatan transaksi"}
+  ]
+}

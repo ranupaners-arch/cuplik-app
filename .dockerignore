@@ -1,0 +1,10 @@
+.env
+.venv
+data
+.git
+web
+tests
+01-blueprint
+02-design-system
+03-prompts
+**/__pycache__

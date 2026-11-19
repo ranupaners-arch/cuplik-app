@@ -1,0 +1,50 @@
+/* Cuplik — dihasilkan dari tokens.json */
+:root, [data-theme="dark"] {
+  --bg: #14120c;
+  --surface: #1e1b14;
+  --surface-raised: #29251c;
+  --line: #3a3428;
+  --ink: #f5efe2;
+  --ink-muted: #ada391;
+  --brand: #f2b43a;
+  --on-brand: #1a1408;
+  --score-high: #3fc2ae;
+  --score-mid: var(--brand);
+  --score-low: #8a8070;
+  --cut: #f0694c;
+  --caption-hl: #ffe14d;
+  --focus: #7fb8ff;
+  --shadow-pop: 0 12px 32px rgba(0,0,0,0.55);
+}
+[data-theme="light"] {
+  --bg: #faf7f0;
+  --surface: #ffffff;
+  --surface-raised: #f2ede2;
+  --line: #e2dacb;
+  --ink: #1a170f;
+  --ink-muted: #6b6253;
+  --brand: #e0a21f;
+  --on-brand: #1a1408;
+  --score-high: #0e7c6d;
+  --score-mid: var(--brand);
+  --score-low: #8a8070;
+  --cut: #c2412a;
+  --caption-hl: #ffe14d;
+  --focus: #1f5fbf;
+  --shadow-pop: 0 12px 32px rgba(40,30,10,0.14);
+}
+:root {
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-pill: 999px;
+  --font-sans: "Plus Jakarta Sans", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+}

@@ -1,0 +1,17 @@
+Video title: {{video_title}}
+Spoken language: {{language}}
+Requested clip length: {{min_seconds}}–{{max_seconds}} seconds (about {{min_words}}–{{max_words}} words at this speaker's pace of {{words_per_second}} words/second)
+Moment focus: {{moment_focus or "none — pick the most engaging moments"}}
+Max candidates for this window: {{max_candidates}}
+
+Energy hints (time ranges where audio energy and speech rate spike; hints, not truth):
+{{energy_peaks}}
+
+{% if liked_examples %}
+Examples of clips this creator liked before (match their style and type, not their topic):
+{% for e in liked_examples %}- "{{e.first_sentence}}" … "{{e.last_sentence}}" ({{e.duration}}s) — liked because: {{e.note or "no note"}}
+{% endfor %}{% endif %}
+
+<transcript>
+{{sentences}}
+</transcript>

@@ -1,0 +1,58 @@
+services:
+  redis:
+    image: redis:7.4-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes: ["redis-data:/data"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 2s
+      retries: 10
+  api:
+    build:
+      context: .
+      args:
+        TRANSCRIPTION_EXTRA: ${CUPLIK_TRANSCRIPTION_EXTRA:-}
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATA_DIR: /app/data
+      REDIS_URL: redis://redis:6379/0
+    ports: ["127.0.0.1:8000:8000"]
+    volumes: ["app-data:/app/data"]
+    depends_on:
+      redis: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+  worker:
+    build:
+      context: .
+      args:
+        TRANSCRIPTION_EXTRA: ${CUPLIK_TRANSCRIPTION_EXTRA:-}
+    command: ["python", "-m", "worker.main"]
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATA_DIR: /app/data
+      REDIS_URL: redis://redis:6379/0
+    volumes: ["app-data:/app/data"]
+    depends_on:
+      api: { condition: service_healthy }
+  web:
+    build:
+      context: ./web
+      args:
+        API_INTERNAL_URL: http://api:8000
+    environment:
+      API_INTERNAL_URL: http://api:8000
+    ports: ["127.0.0.1:3000:3000"]
+    depends_on:
+      api: { condition: service_healthy }
+volumes:
+  app-data:
+  redis-data:

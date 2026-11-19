@@ -1,0 +1,13 @@
+Spoken language: {{language}}
+Audience: {{audience or "general Indonesian audience on TikTok and YouTube Shorts"}}
+Moment focus: {{moment_focus or "none"}}
+
+{% for c in candidates %}
+<clip id="{{c.id}}" duration="{{c.duration}}s">
+<context_before>{{c.context_before}}</context_before>
+<text>
+{{c.words_with_ids}}
+</text>
+<context_after>{{c.context_after}}</context_after>
+</clip>
+{% endfor %}

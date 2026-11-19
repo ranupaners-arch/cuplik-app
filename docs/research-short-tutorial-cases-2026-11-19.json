@@ -1,0 +1,310 @@
+{
+  "research_date": "2026-11-19",
+  "report": "research-short-tutorial-2026-11-19.md",
+  "scope": "Purposive sample of high-view public YouTube videos; not a global ranking.",
+  "discovery_sources": [
+    "https://chartslist.com/youtube/shorts/us/",
+    "YouTube search and creator watch pages"
+  ],
+  "metadata_command_template": [
+    "python",
+    "-m",
+    "yt_dlp",
+    "--ignore-config",
+    "--skip-download",
+    "--no-playlist",
+    "--no-warnings",
+    "--socket-timeout",
+    "12",
+    "--retries",
+    "1",
+    "--extractor-retries",
+    "1",
+    "--js-runtimes",
+    "node",
+    "--dump-single-json",
+    "VIDEO_URL"
+  ],
+  "limitations": [
+    "Cumulative views are not daily traffic, unique users, watch time, or engaged views.",
+    "Videos differ in age, audience, topic, and creator size; counts do not explain performance causes.",
+    "A small sample of successful videos does not estimate typical outcomes.",
+    "YouTube definitions of public views changed over time.",
+    "Public counts may change, be revised, or differ between surfaces.",
+    "Visual frame sampling cannot establish spoken content, all cuts, comprehension, or retention.",
+    "The sample includes explainers and entertainment alongside tutorials; instructional accuracy was not audited."
+  ],
+  "cases": [
+    {
+      "case": "trap_door",
+      "url": "https://www.youtube.com/watch?v=kPI9Mc35mOg",
+      "observed_at_utc": "2026-11-19T03:46:32.915780+00:00",
+      "id": "kPI9Mc35mOg",
+      "title": "Trap Door Roulette",
+      "channel": "MrBeast",
+      "upload_date": "20261106",
+      "duration": 48,
+      "view_count": 108273452,
+      "like_count": 1658864,
+      "comment_count": 13000,
+      "width": 2160,
+      "height": 3840,
+      "duration_unit": "seconds",
+      "views_metric": "cumulative_public_views_as_returned_by_youtube",
+      "metadata_method": "public YouTube metadata extracted with yt-dlp; no account",
+      "visual_inspection": {
+        "method": "not_performed",
+        "scope": "metadata and source descriptions only"
+      }
+    },
+    {
+      "case": "invent_dam",
+      "url": "https://www.youtube.com/watch?v=yE3L0H3tSmM",
+      "observed_at_utc": "2026-11-19T03:46:40.222453+00:00",
+      "id": "yE3L0H3tSmM",
+      "title": "How to Invent a Dam #dam #engineering #hydropower #howitworks",
+      "channel": "ujustbuiltit",
+      "upload_date": "20261107",
+      "duration": 61,
+      "view_count": 23122979,
+      "like_count": 380419,
+      "comment_count": 2000,
+      "width": 1080,
+      "height": 1920,
+      "duration_unit": "seconds",
+      "views_metric": "cumulative_public_views_as_returned_by_youtube",
+      "metadata_method": "public YouTube metadata extracted with yt-dlp; no account",
+      "visual_inspection": {
+        "method": "not_performed",
+        "scope": "metadata and source descriptions only"
+      }
+    },
+    {
+      "case": "pencil_letter",
+      "url": "https://www.youtube.com/watch?v=LY6zhocZn-k",
+      "observed_at_utc": "2026-11-19T03:46:36.298144+00:00",
+      "id": "LY6zhocZn-k",
+      "title": "Simple to Legend Letter D with a Pencil #tutorial #viral #reels #fyp #shorts",
+      "channel": "MtCrafte",
+      "upload_date": "20261110",
+      "duration": 13,
+      "view_count": 18492477,
+      "like_count": 53020,
+      "comment_count": 1000,
+      "width": 2160,
+      "height": 3840,
+      "duration_unit": "seconds",
+      "views_metric": "cumulative_public_views_as_returned_by_youtube",
+      "metadata_method": "public YouTube metadata extracted with yt-dlp; no account",
+      "visual_inspection": {
+        "method": "sampled_video_frames",
+        "sampling_interval_s": 2,
+        "scope": "visual only; not audio or retention",
+        "observed": [
+          "Hands and pencil work on a letter drawn on paper.",
+          "The paper contains SIMPLE, NORMAL, PRO, and LEGEND labels.",
+          "No dialogue subtitles are visible in the sampled frames."
+        ]
+      }
+    },
+    {
+      "case": "matchbox_camera",
+      "url": "https://www.youtube.com/watch?v=BmVz7QMOg3c",
+      "observed_at_utc": "2026-11-19T03:46:37.876810+00:00",
+      "id": "BmVz7QMOg3c",
+      "title": "How To Build A Matchbox Camera 🤔",
+      "channel": "Zack D. Films",
+      "upload_date": "20261108",
+      "duration": 39,
+      "view_count": 16862685,
+      "like_count": 481536,
+      "comment_count": 2600,
+      "width": 2160,
+      "height": 3840,
+      "duration_unit": "seconds",
+      "views_metric": "cumulative_public_views_as_returned_by_youtube",
+      "metadata_method": "public YouTube metadata extracted with yt-dlp; no account",
+      "visual_inspection": {
+        "method": "sampled_video_frames",
+        "sampling_interval_s": 5,
+        "scope": "visual only; not audio, instructional accuracy, or retention",
+        "observed": [
+          "The imagery depicts components and assembly using a rendered 3D style.",
+          "Short caption phrases appear below the central object.",
+          "The visual subject is the object rather than a speaker face."
+        ]
+      }
+    },
+    {
+      "case": "watermelon",
+      "url": "https://www.youtube.com/watch?v=Fvy43W36Nx0",
+      "observed_at_utc": "2026-11-19T03:46:29.050522+00:00",
+      "id": "Fvy43W36Nx0",
+      "title": "WATERMELON JUICE | Farm Fresh Fruit Juice Making | Watermelon Craft | Watermelon Experiment",
+      "channel": "Village Cooking Channel",
+      "upload_date": "20220404",
+      "duration": 736,
+      "view_count": 343474532,
+      "like_count": 1521652,
+      "comment_count": 16000,
+      "width": 3840,
+      "height": 2160,
+      "duration_unit": "seconds",
+      "views_metric": "cumulative_public_views_as_returned_by_youtube",
+      "metadata_method": "public YouTube metadata extracted with yt-dlp; no account",
+      "visual_inspection": {
+        "method": "not_performed",
+        "scope": "metadata and source descriptions only"
+      }
+    },
+    {
+      "case": "python_mosh",
+      "url": "https://www.youtube.com/watch?v=_uQrJ0TkZlc",
+      "observed_at_utc": "2026-11-19T03:42:36.554365+00:00",
+      "id": "_uQrJ0TkZlc",
+      "title": "Python Full Course for Beginners",
+      "channel": "Programming with Mosh",
+      "upload_date": "20190218",
+      "duration": 22447,
+      "view_count": 49645378,
+      "like_count": 1275232,
+      "comment_count": 63000,
+      "width": 1920,
+      "height": 1080,
+      "duration_unit": "seconds",
+      "views_metric": "cumulative_public_views_as_returned_by_youtube",
+      "metadata_method": "public YouTube metadata extracted with yt-dlp; no account",
+      "visual_inspection": {
+        "method": "not_performed",
+        "scope": "metadata and source descriptions only"
+      }
+    },
+    {
+      "case": "python_freecodecamp",
+      "url": "https://www.youtube.com/watch?v=rfscVS0vtbw",
+      "observed_at_utc": "2026-11-19T03:42:35.492779+00:00",
+      "id": "rfscVS0vtbw",
+      "title": "Learn Python - Full Course for Beginners [Tutorial]",
+      "channel": "freeCodeCamp.org",
+      "upload_date": "20180711",
+      "duration": 16012,
+      "view_count": 49605324,
+      "like_count": 1123800,
+      "comment_count": 46000,
+      "width": 1280,
+      "height": 720,
+      "duration_unit": "seconds",
+      "views_metric": "cumulative_public_views_as_returned_by_youtube",
+      "metadata_method": "public YouTube metadata extracted with yt-dlp; no account",
+      "visual_inspection": {
+        "method": "not_performed",
+        "scope": "metadata and source descriptions only"
+      }
+    },
+    {
+      "case": "tie_fast",
+      "url": "https://www.youtube.com/watch?v=fRY9gb4IDUE",
+      "observed_at_utc": "2026-11-19T03:42:31.589556+00:00",
+      "id": "fRY9gb4IDUE",
+      "title": "How to tie a tie/ Easy and Fast!",
+      "channel": "How to Johnny",
+      "upload_date": "20230112",
+      "duration": 30,
+      "view_count": 19023066,
+      "like_count": 303197,
+      "comment_count": 2400,
+      "width": 720,
+      "height": 1280,
+      "duration_unit": "seconds",
+      "views_metric": "cumulative_public_views_as_returned_by_youtube",
+      "metadata_method": "public YouTube metadata extracted with yt-dlp; no account",
+      "visual_inspection": {
+        "method": "sampled_video_frames",
+        "sampling_interval_s": 4,
+        "scope": "visual only; not audio or retention",
+        "observed": [
+          "Hands, tie, and torso dominate the frame.",
+          "A face is not required to show the demonstrated knot.",
+          "No burned-in dialogue subtitles are visible in the sampled frames."
+        ]
+      }
+    },
+    {
+      "case": "tie_easy",
+      "url": "https://www.youtube.com/watch?v=KDC5MYU-VEY",
+      "observed_at_utc": "2026-11-19T03:42:30.800641+00:00",
+      "id": "KDC5MYU-VEY",
+      "title": "Como dar o Nó de gravata - Fácil",
+      "channel": "Gabriel Meneghetti",
+      "upload_date": "20120818",
+      "duration": 141,
+      "view_count": 12533420,
+      "like_count": 65520,
+      "comment_count": 893,
+      "width": 852,
+      "height": 480,
+      "duration_unit": "seconds",
+      "views_metric": "cumulative_public_views_as_returned_by_youtube",
+      "metadata_method": "public YouTube metadata extracted with yt-dlp; no account",
+      "visual_inspection": {
+        "method": "not_performed",
+        "scope": "metadata and source descriptions only"
+      }
+    },
+    {
+      "case": "excel_kevin",
+      "url": "https://www.youtube.com/watch?v=LgXzzu68j7M",
+      "observed_at_utc": "2026-11-19T03:46:30.343080+00:00",
+      "id": "LgXzzu68j7M",
+      "title": "Excel Tutorial for Beginners",
+      "channel": "Kevin Stratvert",
+      "upload_date": "20230725",
+      "duration": 976,
+      "view_count": 7933249,
+      "like_count": 135522,
+      "comment_count": 2800,
+      "width": 3840,
+      "height": 2160,
+      "duration_unit": "seconds",
+      "views_metric": "cumulative_public_views_as_returned_by_youtube",
+      "metadata_method": "public YouTube metadata extracted with yt-dlp; no account",
+      "visual_inspection": {
+        "method": "not_performed",
+        "scope": "metadata and source descriptions only"
+      }
+    },
+    {
+      "case": "nasi_goreng_devina",
+      "url": "https://www.youtube.com/watch?v=TRHMSUika6E",
+      "observed_at_utc": "2026-11-19T03:47:38.538671+00:00",
+      "id": "TRHMSUika6E",
+      "title": "Resep Nasi Goreng Kampung",
+      "channel": "Devina Hermawan",
+      "upload_date": "20240313",
+      "duration": 58,
+      "view_count": 2519362,
+      "like_count": 63003,
+      "comment_count": 765,
+      "width": 1080,
+      "height": 1920,
+      "duration_unit": "seconds",
+      "views_metric": "cumulative_public_views_as_returned_by_youtube",
+      "metadata_method": "public YouTube metadata extracted with yt-dlp; no account",
+      "visual_inspection": {
+        "method": "not_performed",
+        "scope": "metadata and source descriptions only"
+      }
+    }
+  ],
+  "historical_tiktok_reference": {
+    "creator": "Zach King",
+    "video": "Magic Broomstick",
+    "upload_date": "2019-12-09",
+    "reported_views": 2200000000,
+    "views_as_of": "2022-03-15",
+    "source_published_at": "2022-12-01",
+    "source": "https://www.guinnessworldrecords.com/news/2022/11/internet-illusionist-zach-king-breaks-record-for-most-viewed-video-on-tiktok-724834",
+    "verification_method": "Guinness World Records article; not a live TikTok counter",
+    "current_record_holder_verified": false
+  }
+}

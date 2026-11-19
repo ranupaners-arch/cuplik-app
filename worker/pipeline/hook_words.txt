@@ -1,0 +1,27 @@
+# Whole words/phrases, Indonesian and English. Hints only, never quality labels.
+kenapa
+mengapa
+bagaimana
+rahasia
+ternyata
+kesalahan
+bayangkan
+jangan
+gagal
+berhasil
+padahal
+awas
+ingat
+gratis
+why
+how
+secret
+mistake
+imagine
+never
+surprising
+warning
+failed
+success
+what if
+tahukah kamu

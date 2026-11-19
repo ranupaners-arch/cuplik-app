@@ -1,0 +1,28 @@
+name: checks
+on: [push, pull_request]
+jobs:
+  foundation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg redis-server
+      - run: make install
+      - run: make lint test build
+      - run: make eval eval-fixtures
+      - run: make types && git diff --exit-code -- docs/openapi.json web/src/lib/api.generated.ts
+      - run: npx playwright install --with-deps chromium
+        working-directory: web
+      - run: make e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-traces
+          path: web/test-results

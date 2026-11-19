@@ -1,0 +1,9 @@
+{
+  "language": "id",
+  "source": "sidecar",
+  "sentences": [
+    { "id": "s1", "start": 0, "end": 4, "text": "Pisahkan uang pribadi dan uang usaha." },
+    { "id": "s2", "start": 4, "end": 8, "text": "Catat setiap transaksi pada hari yang sama." },
+    { "id": "s3", "start": 8, "end": 12, "text": "Tinjau keuntungan usaha setiap akhir pekan." }
+  ]
+}

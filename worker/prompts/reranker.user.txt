@@ -1,0 +1,5 @@
+{% for c in finalists %}
+<clip id="{{c.id}}" topic="{{c.topic}}" base_score="{{c.base_score}}" duration="{{c.duration}}s">
+{{c.text}}
+</clip>
+{% endfor %}
