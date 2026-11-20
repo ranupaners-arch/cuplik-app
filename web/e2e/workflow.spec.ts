@@ -10,6 +10,7 @@ test("sample LLM, kedua mode, progres tersimpan, koreksi caption, dan unduh", as
   await page.getByRole("button", { name: "Jalankan sample LLM" }).click();
   await expect(page.getByTestId("llm-result")).toContainText('"provider": "mock"');
   await page.goto("/");
+  await page.getByRole("combobox", { name: "Jenis sumber", exact: true }).selectOption("demo");
   await page.getByRole("combobox", { name: "Mode", exact: true }).selectOption("both");
   await page.getByLabel("Jumlah klip").fill("1");
   await page.getByRole("button", { name: "Mulai proses" }).click();
@@ -86,7 +87,7 @@ test("sample LLM, kedua mode, progres tersimpan, koreksi caption, dan unduh", as
   await page.getByRole("link", { name: "Unduh indeks bab (TXT)", exact: true }).click();
   expect((await chapterDownload).suggestedFilename()).toBe("chapters.txt");
   await page.goto("/history");
-  await expect(page.getByRole("link", { name: "Video demo sintetis" })).toBeVisible();
+  await expect(page.locator(`a[href="/projects/${selectedDetail.project.id}"]`)).toBeVisible();
   expect(browserErrors).toEqual([]);
 });
 
@@ -196,6 +197,7 @@ test("anotasi sumber sebelum AI, ekspor, konflik revisi, dan crop manual Shorts"
   const browserErrors: string[] = [];
   page.on("pageerror", e => browserErrors.push(e.message));
   await page.goto("/");
+  await page.getByRole("combobox", { name: "Jenis sumber", exact: true }).selectOption("demo");
   await page.getByRole("combobox", { name: "Mode", exact: true }).selectOption("annotate");
   await page.getByRole("button", { name: "Mulai proses", exact: true }).click();
   await page.getByRole("link", { name: "Lihat progres sumber dan transkrip", exact: true }).click();

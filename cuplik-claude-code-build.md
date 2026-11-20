@@ -136,6 +136,9 @@ Perluas workflow outline/solver/render yang sudah ada dengan beat visual, vision
 
 Status saat ini: QC Ringkas tersedia. Pengguna meminta kelanjutan berurutan ke UI responsif Mantine dan APK, dengan branch/PR tersendiri serta CI pada setiap perubahan.
 
+- [x] UI Mantine mengikuti token studio Cuplik, font lokal, panel video responsif, form dan navigasi yang dapat diakses pada hape/tablet/laptop.
+- [ ] APK Android dengan transkripsi dan pemrosesan video pada perangkat serta analisis transkrip melalui API LLM. Aplikasi tetap online; video tidak perlu diunggah untuk render.
+
 ## Fase 6
 
 Fitur lanjutan hanya setelah fase sebelumnya dipakai dan diperiksa, mengikuti referensi asli.

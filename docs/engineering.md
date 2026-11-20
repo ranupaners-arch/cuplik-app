@@ -1,6 +1,6 @@
 # Keputusan fondasi Cuplik
 
-Diperbarui: 20 November 2026, sampai pemeriksaan koherensi dan overlay judul bab Ringkas pada Fase 5. Scope: workflow end-to-end, sample API LLM, ingest, Klip, kontrol pengguna, anotasi, vision dan paket hasil Ringkas. UI berupa form standar; penerapan design system tetap ditunda.
+Diperbarui: 20 November 2026, sampai QC Ringkas dan UI Mantine responsif. Scope: workflow end-to-end, sample API LLM, ingest, Klip, kontrol pengguna, anotasi, vision dan paket hasil Ringkas. UI memakai tema Mantine dari design system Cuplik dan mempertahankan kontrol form native untuk validasi serta aksesibilitas.
 
 ## Stack
 
@@ -52,7 +52,7 @@ Evaluator Klip menerima anotasi `expected.json` dan prediksi pipeline, menghitun
 
 Belum ada pengukuran performa video 1–3 jam, kualitas golden set manusia/provider nyata, akurasi sinkron ucapan manual, akurasi vision Ringkas, atau hasil produksi sesuai seluruh PRD. Pelacakan/retensi dan QC file akhir Klip sudah diuji pada Fase 3. Ringkas kini memisahkan indeks tinjauan dengan teks YouTube yang diperiksa formatnya; hasil lama ditandai belum diverifikasi.
 
-Pekerjaan mengikuti `cuplik-claude-code-build.md`. Fase 5 menyediakan bab, anotasi, vision, timelapse, pemeriksaan koherensi dan overlay judul bab; QC Ringkas masih terbuka. Gate kualitas/performa MVP belum terukur. Penerapan desain tetap ditunda.
+Pekerjaan mengikuti `cuplik-claude-code-build.md`. Fase 5 menyediakan bab, anotasi, vision, timelapse, koherensi, judul bab dan QC Ringkas. Gate kualitas/performa MVP belum terukur. Pengguna telah mengizinkan penerapan UI responsif dan build Android berikutnya.
 
 PySceneDetect dipasang sebagai `scenedetect-headless` 0.7.3 dengan OpenCV headless, agar worker/server tidak membutuhkan pustaka GUI. NumPy dipakai untuk fitur per detik dan Jinja2 untuk template produksi. Pilihan mengikuti [paket resmi](https://www.scenedetect.com/download/); versi terkunci di `uv.lock`, dan uji nyata memverifikasi `ContentDetector` serta runtime Docker.
 
@@ -109,3 +109,7 @@ Pemulihan memberi `evidence.coherence_required` lalu menjalankan solver pada sal
 Judul bab memakai ASS kecil di kiri atas, maksimal dua baris, terpisah dari caption bawah dan penanda timelapse kanan atas. Overlay hingga dua detik berlanjut melintasi bagian pendek bab yang sama; key cache mencakup judul dan sisa waktu overlay. Timeline mencatat durasi overlay aktual. Tidak ada segmen tambahan atau perubahan audio untuk kartu bab.
 
 QC Ringkas menormalkan audio dua lintasan menuju −14 LUFS dengan gambar disalin tanpa encode ulang. File akhir diperiksa untuk durasi rencana/target, waktu mulai dan akhir stream, cakupan timeline bab, gambar hitam, hening, loudness dan peak. Hanya rentang timeline timelapse yang sudah disetujui dikecualikan dari deteksi hening; hening di luar rentang tersebut tetap dilaporkan. Hasil tetap dapat diunduh dengan status perlu tinjauan. Endpoint `/outputs/{id}/qc`, detail output dan ZIP memuat laporan yang sama. Waktu stream tidak membuktikan sinkronisasi ucapan/bibir atau ketepatan ASR.
+
+## UI responsif
+
+MantineProvider menggunakan tema studio gelap, aksen kunyit, token CSS kanonis dari `02-design-system`, dan font Plus Jakarta Sans/JetBrains Mono yang disajikan lokal. Root Turbopack diarahkan ke root repository agar token dapat diimpor langsung tanpa salinan yang menyimpang. Tombol Mantine mempertahankan tipe submit/helper dari alur sebelumnya. Grid intrinsik dan container query menyesuaikan panel video/pengaturan; media memakai aspect ratio dan batas tinggi dinamis. Navigasi memakai satu pohon tautan, indikator halaman aktif, fokus keyboard dan tautan lewati konten. Demo dipilih secara eksplisit; sumber awal berupa link video.
