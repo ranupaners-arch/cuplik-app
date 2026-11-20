@@ -169,8 +169,8 @@ public final class ProcessingService extends Service {
   }
 
   private void finishExecution(int startId, String id, String result, String message) {
-    if (!jobId.equals(id)) return;
-    if (!terminal) store.finish(id, result, message);
+    if (terminal || !jobId.equals(id)) return;
+    store.finish(id, result, message);
     terminal = true;
     running = false;
     renderer = null;
@@ -582,9 +582,11 @@ public final class ProcessingService extends Service {
   public void onDestroy() {
     cancelled.set(true);
     cancelNative();
-    if (!terminal)
+    if (!terminal) {
+      terminal = true;
       store.finish(
           jobId, "interrupted", "Layanan terhenti. Checkpoint disimpan untuk dicoba ulang.");
+    }
     running = false;
     if (wake != null && wake.isHeld()) wake.release();
     executor.shutdownNow();
