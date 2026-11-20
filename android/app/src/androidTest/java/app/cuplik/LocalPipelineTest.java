@@ -87,6 +87,10 @@ public class LocalPipelineTest {
     assertTrue(store.media(output.getString("file")).length() > 1000);
     assertTrue(output.getBoolean("audio_present"));
     assertTrue(output.getBoolean("duration_matches"));
+    assertTrue(output.getJSONObject("qc").getJSONObject("audio").getDouble("rms_dbfs") > -50);
+    assertTrue(
+        output.getJSONObject("qc").getJSONObject("audio").getDouble("decoded_duration_s") > 6);
+    assertEquals(1, output.getJSONObject("qc").getInt("version"));
     File finalPcm = new File(context.getCacheDir(), "export.f32");
     AudioDecoder.decode(store.media(output.getString("file")), finalPcm, new AtomicBoolean(false));
     ByteBuffer decoded =
@@ -101,11 +105,16 @@ public class LocalPipelineTest {
     assertTrue(
         "Encoded output must retain audible samples", frames > 16000 && energy / frames > 1e-8);
     int exported = store.state().getJSONArray("outputs").length();
+    String firstFile = output.getString("file");
+    store.update(s -> s.getJSONArray("outputs").getJSONObject(0).remove("qc"));
     new RenderEngine(context, store)
         .render(source, plan, transcript, "condense", false, true, new AtomicBoolean(false));
     assertEquals(
         "Retry must reuse the completed export",
         exported,
         store.state().getJSONArray("outputs").length());
+    assertEquals(
+        firstFile, store.state().getJSONArray("outputs").getJSONObject(0).getString("file"));
+    assertNotNull(store.state().getJSONArray("outputs").getJSONObject(0).optJSONObject("qc"));
   }
 }

@@ -88,6 +88,17 @@ final class RenderEngine {
       boolean captions,
       AtomicBoolean cancelled)
       throws Exception {
+    MediaMetadataRetriever sourceMetadata = new MediaMetadataRetriever();
+    boolean sourceAudio;
+    try {
+      sourceMetadata.setDataSource(source.getPath());
+      sourceAudio =
+          "yes"
+              .equals(
+                  sourceMetadata.extractMetadata(MediaMetadataRetriever.METADATA_KEY_HAS_AUDIO));
+    } finally {
+      sourceMetadata.release();
+    }
     List<List<JSONObject>> exports = new ArrayList<>();
     List<JSONObject> kept = new ArrayList<>();
     for (int i = 0; i < plan.length(); i++)
@@ -120,6 +131,20 @@ final class RenderEngine {
         JSONObject cached = outputs.getJSONObject(previous);
         if (inputKey.equals(cached.optString("input_key"))
             && store.media(cached.optString("file")).isFile()) {
+          if (cached.optJSONObject("qc") == null) {
+            cached.put(
+                "qc",
+                measure(
+                    store.media(cached.getString("file")),
+                    cached.getDouble("duration_s"),
+                    cached.getDouble("expected_duration_s"),
+                    cached.optBoolean("audio_present"),
+                    sourceAudio,
+                    cancelled));
+            JSONArray snapshot = new JSONArray(outputs.toString());
+            if (owner == null) store.update(state -> state.put("outputs", snapshot));
+            else store.updateJob(owner, state -> state.put("outputs", snapshot));
+          }
           reused = true;
           break;
         }
@@ -254,6 +279,10 @@ final class RenderEngine {
           metadata.release();
         }
         check(cancelled);
+        progress(
+            (outputIndex + .98) / exports.size(), "Memeriksa sampel audio dan durasi MP4 akhir…");
+        JSONObject qc = measure(file, actual, expected, audio, sourceAudio, cancelled);
+        check(cancelled);
         if (!file.renameTo(store.media(name)))
           throw new IllegalStateException("Ekspor selesai belum dapat disimpan.");
         outputs.put(
@@ -272,6 +301,8 @@ final class RenderEngine {
                 expected,
                 "audio_present",
                 audio,
+                "qc",
+                qc,
                 "duration_matches",
                 Math.abs(actual - expected) <= Math.max(.15, expected * .03),
                 "url",
@@ -283,6 +314,28 @@ final class RenderEngine {
         file.delete();
       }
     }
+  }
+
+  private JSONObject measure(
+      File file,
+      double actual,
+      double expected,
+      boolean audio,
+      boolean sourceAudio,
+      AtomicBoolean cancelled)
+      throws Exception {
+    JSONObject levels = null;
+    if (audio) {
+      try {
+        levels = AudioDecoder.levels(file, cancelled);
+      } catch (InterruptedException stopped) {
+        throw stopped;
+      } catch (Exception unavailable) {
+        /* A completed export remains available for manual review. */
+      }
+    }
+    check(cancelled);
+    return OutputQc.report(actual, expected, audio, sourceAudio, levels);
   }
 
   static final class Captions extends TextOverlay {
