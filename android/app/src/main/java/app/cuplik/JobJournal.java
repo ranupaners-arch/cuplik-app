@@ -41,7 +41,7 @@ final class JobJournal {
                   "layout",
                   "captions",
                   "manual");
-          case "render" -> Set.of("plan");
+          case "render" -> Set.of("plan", "layout", "captions");
           case "import" -> Set.of("uri", "name");
           default -> Set.of();
         };

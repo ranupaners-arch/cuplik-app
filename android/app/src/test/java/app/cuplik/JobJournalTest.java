@@ -76,6 +76,20 @@ public class JobJournalTest {
   }
 
   @Test
+  public void renderRetryRetainsExplicitFramingAndCaptionChoices() throws Exception {
+    JSONObject state = state();
+    JSONObject job =
+        JobJournal.enqueue(
+            state,
+            "render",
+            Json.obj("plan", new JSONArray(), "layout", "portrait", "captions", false));
+    JobJournal.finish(state, job.getString("id"), "failed", "fixture");
+    JSONObject retry = JobJournal.retry(state).getJSONObject("payload");
+    assertEquals("portrait", retry.getString("layout"));
+    assertFalse(retry.getBoolean("captions"));
+  }
+
+  @Test
   public void cancellationCannotBeOverwrittenBySuccessOrProgress() throws Exception {
     JSONObject state = state(), job = JobJournal.enqueue(state, "model", new JSONObject());
     String id = job.getString("id");

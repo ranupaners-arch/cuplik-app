@@ -518,9 +518,15 @@ public final class ProcessingService extends Service {
             mode,
             source.getDouble("duration_s"));
     JSONObject settings = state.getJSONObject("settings");
+    String layout = options.optString("layout", settings.optString("layout", "source"));
+    if (!layout.equals("source") && !layout.equals("portrait"))
+      throw new IllegalArgumentException("Bingkai hasil tidak valid.");
+    settings.put("layout", layout);
+    settings.put("captions", options.optBoolean("captions", settings.optBoolean("captions", true)));
     update(
         s -> {
           s.put("plan", reviewed);
+          s.put("settings", settings);
           s.put("status", "rendering");
           s.remove("error");
         });

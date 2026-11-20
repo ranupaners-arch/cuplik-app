@@ -371,6 +371,9 @@ public final class MainActivity extends ComponentActivity {
         store.editInputs(
             s -> {
               s.put("plan", plan);
+              JSONObject settings = s.optJSONObject("settings");
+              if (settings != null)
+                settings.put("target_seconds", options.getDouble("target_seconds"));
               s.put("status", "awaiting_review");
               s.put("note", "Rencana dihitung ulang. Tinjau keputusan sebelum ekspor.");
               s.remove("error");
