@@ -78,7 +78,7 @@ from worker.pipeline.media import MediaError, demo_transcript, probe_file, probe
 from worker.pipeline.render import clip_fingerprint
 from worker.pipeline.signals import Signals
 from worker.pipeline.solver import InfeasibleDuration, solve
-from worker.pipeline.storage import atomic_json, file_lock, output_dir, project_dir
+from worker.pipeline.storage import atomic_json, file_lock, json_object, output_dir, project_dir
 from worker.pipeline.vision import read_vision_report
 
 
@@ -611,6 +611,8 @@ def output_detail(output_id: str, session: DB):
         detail.coherence_report = read_coherence_report(
             output_dir(output_id), output=output, beats=detail.beats, chapters=detail.chapters
         )
+        if output.status == "done":
+            detail.condense_qc = json_object(output_dir(output_id) / "condensed.qc.json") or None
     return detail
 
 
@@ -665,7 +667,12 @@ def retry(output_id: str, session: DB):
     if output.status != "failed":
         raise HTTPException(409, "Hanya output gagal yang dapat dicoba ulang")
     # These stages follow an accepted outline, including a failed coherence request.
-    render_only = output.mode == "condense" and output.stage in {"solve", "coherence", "render"}
+    render_only = output.mode == "condense" and output.stage in {
+        "solve",
+        "coherence",
+        "render",
+        "qc",
+    }
     try:
         job_id = enqueue_output(output_id, expected_statuses={"failed"}, render_only=render_only)
     except ValueError as exc:
@@ -914,6 +921,14 @@ def coherence_report(output_id: str, session: DB):
     return detail.coherence_report
 
 
+@app.get("/api/outputs/{output_id}/qc")
+def condensed_qc(output_id: str, session: DB):
+    detail = output_detail(output_id, session)
+    if detail.output.status != "done" or detail.condense_qc is None:
+        raise HTTPException(404, "QC Ringkas belum tersedia")
+    return detail.condense_qc
+
+
 @app.post("/api/llm/sample")
 def sample_llm(body: SampleRequest):
     transcript = demo_transcript()
@@ -988,6 +1003,8 @@ def export(output_id: str, session: DB):
                 archive.writestr(
                     "coherence.json", detail.coherence_report.model_dump_json(indent=2)
                 )
+            if detail.condense_qc:
+                archive.writestr("condensed.qc.json", json.dumps(detail.condense_qc, indent=2))
             if detail.output.mode == "clips":
                 archive.writestr(
                     "captions.txt",

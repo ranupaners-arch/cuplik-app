@@ -150,7 +150,7 @@ Untuk E2E, pasang browser dengan `cd web && npx playwright install chromium` bil
 | `02-design-system/` | Token dan prototipe asli, tetap terpisah |
 | `03-prompts/` | Library prompt dan rencana asli |
 
-Keputusan teknologi: [engineering.md](docs/engineering.md). Rencana per fase: [cuplik-claude-code-build.md](cuplik-claude-code-build.md). Referensi produk: [riset video pendek/tutorial](docs/research-short-tutorial-2026-11-19.md). Fase 5 masih menyisakan QC Ringkas serta pengukuran kualitas dan performa.
+Keputusan teknologi: [engineering.md](docs/engineering.md). Rencana per fase: [cuplik-claude-code-build.md](cuplik-claude-code-build.md). Referensi produk: [riset video pendek/tutorial](docs/research-short-tutorial-2026-11-19.md). QC Ringkas tersedia melalui detail output, endpoint QC dan ZIP. Pengukuran kualitas model nyata serta performa tetap terbuka.
 
 Untuk memperbarui klip lama, jalankan ulang aplikasi lalu gunakan kontrol render ulang. Pengaturan `.env` lama `RENDER_HEIGHT=640` dapat dinaikkan menjadi 1280.
 

@@ -10,6 +10,7 @@ from api.app.models import Beat, Chapter, Clip, Output, Project
 from api.app.schemas import OutlinePlan, OutputSettings, Transcript
 from worker.pipeline.chapters import write_chapter_export
 from worker.pipeline.coherence import check_coherence
+from worker.pipeline.condense_qc import inspect_condensed, normalize_condensed
 from worker.pipeline.ingest import ingest_project as ingest_project
 from worker.pipeline.llm import LLMClient
 from worker.pipeline.media import probe_file
@@ -345,6 +346,11 @@ def _run_output(output_id: str, render_only: bool = False, clip_id: str | None =
                         chapters=chapters,
                     )
                     output = session.get(Output, output_id)
+                    ctx.progress("qc", 0.96, "Menormalkan audio dan memeriksa video Ringkas akhir")
+                    normalization = normalize_condensed(path, directory)
+                    qc = inspect_condensed(
+                        path, directory, beats, settings.target_seconds, normalization
+                    )
                     output.actual_duration_s = probe_file(path)["duration_s"]
                     session.commit()
                     chapters = session.exec(
@@ -353,6 +359,14 @@ def _run_output(output_id: str, render_only: bool = False, clip_id: str | None =
                         .order_by(Chapter.order)
                     ).all()
                     write_chapter_export(directory, list(chapters))
+                    if not qc["passed"]:
+                        ctx.progress(
+                            "done",
+                            1,
+                            "Selesai; QC membutuhkan tinjauan. Periksa laporan sebelum memakai hasil.",
+                            status="done",
+                        )
+                        return
             ctx.progress("done", 1, "Selesai; hasil siap diputar dan diunduh", status="done")
         except Exception as exc:
             logger.exception("Output %s failed", output_id)

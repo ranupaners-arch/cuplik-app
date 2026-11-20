@@ -130,10 +130,11 @@ Perluas workflow outline/solver/render yang sudah ada dengan beat visual, vision
 - [x] Timelapse 2–8× untuk manual/idle/repeat visual dengan persetujuan per beat; audio hening, penanda kecepatan, timeline aktual dan pengamanan yang sama pada API/solver/renderer.
 - [x] Pemeriksaan koherensi naskah opsional dengan ID sumber tervalidasi, cache dan maksimal dua putaran per persetujuan. Pemulihan konteks menjaga kunci/bagian wajib, menghitung ulang durasi dan mengembalikan rencana ke tinjauan. Laporan lama ditandai bila rencana berubah.
 - [x] Overlay judul bab opsional hingga dua detik, berlanjut melintasi beat pendek, tanpa menambah durasi atau mengubah audio.
+- [x] QC Ringkas: normalisasi audio dua lintasan, pemeriksaan file akhir dan timeline, pengecualian hening timelapse sesuai rentang persetujuan, serta laporan API/ZIP yang dapat ditinjau.
 - [ ] Pengisian dan pengukuran dataset manusia: 10 sumber Klip dan 5 sumber Ringkas unik dengan provider nyata.
-- [ ] Pelacakan aksi/tangan/objek sepanjang adegan, video sepenuhnya tanpa transkrip, dan QC Ringkas setara Klip. Kualitas pemeriksaan koherensi dengan model nyata belum diukur. Fase 5 belum selesai.
+- [ ] Pelacakan aksi/tangan/objek sepanjang adegan dan video sepenuhnya tanpa transkrip. Kualitas pemeriksaan koherensi dengan model nyata belum diukur. Fase 5 belum selesai.
 
-Status saat ini: koherensi naskah dan overlay judul bab tersedia. Berhenti untuk tinjauan sebelum melanjutkan QC Ringkas.
+Status saat ini: QC Ringkas tersedia. Pengguna meminta kelanjutan berurutan ke UI responsif Mantine dan APK, dengan branch/PR tersendiri serta CI pada setiap perubahan.
 
 ## Fase 6
 

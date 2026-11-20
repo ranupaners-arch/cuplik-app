@@ -1537,6 +1537,43 @@
         }
       }
     },
+    "/api/outputs/{output_id}/qc": {
+      "get": {
+        "summary": "Condensed Qc",
+        "operationId": "condensed_qc_api_outputs__output_id__qc_get",
+        "parameters": [
+          {
+            "name": "output_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Output Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/llm/sample": {
       "post": {
         "summary": "Sample Llm",
@@ -3319,6 +3356,18 @@
                 "type": "null"
               }
             ]
+          },
+          "condense_qc": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Condense Qc"
           }
         },
         "type": "object",

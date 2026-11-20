@@ -523,6 +523,7 @@ class OutputDetail(BaseModel):
     chapter_export: ChapterExport | None = None
     vision_report: VisionReport | None = None
     coherence_report: CoherenceReport | None = None
+    condense_qc: dict | None = None
 
 
 class AnnotationRange(StrictModel):
