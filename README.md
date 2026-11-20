@@ -139,9 +139,20 @@ Untuk E2E, pasang browser dengan `cd web && npx playwright install chromium` bil
 
 ## Struktur
 
+### Android
+
+APK Android memakai UI Mantine yang dibundel, Whisper.cpp untuk transkripsi lokal, dan Media3 untuk ekspor di perangkat. Mendukung Android 10+ pada arm64 dan x86_64. Internet digunakan untuk mengunduh model sekali serta analisis teks melalui Gemini/Anthropic; pemrosesan media tidak memerlukan server/laptop.
+
+Di aplikasi, buka **Pengaturan API AI dan model transkripsi**, isi kunci milikmu, simpan, lalu **Periksa koneksi dan model**. Pilih model dari daftar akun dan simpan kembali. Aktifkan izin pengiriman teks bila ingin analisis AI. Unduh model transkripsi, pilih video, susun dan tinjau rencana, lalu ekspor serta simpan MP4. Pilihan manual tersedia tanpa API. Cache transkripsi dan hasil ekspor dapat dipakai ulang; pembersihan lokal meminta konfirmasi dan mempertahankan model serta pengaturan AI.
+
+Untuk build lokal, siapkan JDK 17, Android SDK 36, NDK `27.0.12077973`, CMake `3.22.1`, lalu `make android`. CI membangun APK debug dan menjalankan tes unit, lint serta smoke test transkripsi/render pada emulator. Debug APK untuk pemeriksaan/sideload; signing rilis belum dikonfigurasi. QC Android memeriksa durasi dan keberadaan audio; pengukuran LUFS, vision, serta pelacakan pembicara web belum dipindahkan ke Android. Kualitas model/API dan performa perangkat fisik perlu diukur.
+
+### Direktori proyek
+
 | Lokasi | Isi |
 |---|---|
 | `web/` | Next.js, form workflow, tipe API, E2E Playwright |
+| `android/` | APK, bridge lokal, Whisper JNI, Media3 dan tes perangkat |
 | `api/` | FastAPI, SQLModel, Alembic, upload, SSE, ekspor |
 | `worker/` | Ingest/cache, LLM, validasi, solver, FFmpeg |
 | `tests/` | Tes backend dan integrasi media |

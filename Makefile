@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help doctor install install-transcription dev test lint build e2e types migrate sample eval eval-fixtures update-ytdlp validate-ingest
+.PHONY: help doctor install install-transcription dev test lint build e2e types migrate sample eval eval-fixtures update-ytdlp validate-ingest android-ui android
 help:
 	@printf '%s\n' \
 	  'Cuplik — perintah lokal' \
@@ -12,7 +12,15 @@ help:
 	  '  make build           Build produksi web' \
 	  '  make sample          Buat video sintetis untuk uji unggah' \
 	  '  make types           Perbarui OpenAPI dan tipe frontend' \
-	  '  make eval            Evaluasi dataset beranotasi jika tersedia'
+	  '  make eval            Evaluasi dataset beranotasi jika tersedia' \
+	  '  make android-ui      Bundle UI Android tanpa SDK' \
+	  '  make android         Build APK lokal dengan Android SDK/NDK'
+
+android-ui:
+	npm run build:android-ui --prefix web
+android:
+	python3 scripts/prepare_android.py
+	cd android && ./gradlew assembleDebug testDebugUnitTest lintDebug
 doctor:
 	python3 scripts/check_setup.py
 install:
