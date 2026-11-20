@@ -45,7 +45,7 @@ jobs:
           name: playwright-traces
           path: web/test-results
   android:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
@@ -77,14 +77,19 @@ jobs:
       - run: ./gradlew assembleDebug testDebugUnitTest lintDebug --no-daemon
         working-directory: android
       - name: Prepare native pipeline fixture
+        timeout-minutes: 9
         run: |
-          sudo apt-get update
-          sudo apt-get install -y ffmpeg espeak-ng
+          bash scripts/ci_system_packages.sh ffmpeg espeak-ng
           mkdir -p android/app/src/androidTest/assets
           espeak-ng -w /tmp/cuplik-speech.wav "This is a video editing test. We prepare the tools, follow each step, and check the result carefully."
           ffmpeg -v error -y -f lavfi -i testsrc2=size=320x180:rate=24:duration=8 -i /tmp/cuplik-speech.wav -af apad -t 8 -c:v libx264 -pix_fmt yuv420p -c:a aac android/app/src/androidTest/assets/source.mp4
-          curl --fail --location --retry 3 https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.bin -o android/app/src/androidTest/assets/ggml-tiny.bin
-          echo 'be07e048e1e599ad46341c8d2a135645097a538221678b7acdd1b1919c6e1b21  android/app/src/androidTest/assets/ggml-tiny.bin' | sha256sum --check
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/cuplik/ggml-tiny.bin
+          key: cuplik-whisper-tiny-be07e048e1e599ad46341c8d2a135645097a538221678b7acdd1b1919c6e1b21
+      - name: Download or validate cached Whisper test model
+        timeout-minutes: 8
+        run: bash scripts/ci_whisper_model.sh
       - name: Compile instrumentation before starting emulator
         run: ./gradlew assembleDebugAndroidTest --no-daemon
         working-directory: android
@@ -110,7 +115,7 @@ jobs:
   signed-apk:
     if: github.event_name == 'workflow_dispatch' && inputs.build_signed_apk && github.actor == github.repository_owner
     needs: [web, android]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
     environment: android-signing
     steps:
@@ -174,7 +179,7 @@ jobs:
   foundation:
     if: always()
     needs: [web, android, signed-apk]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Require all checks
         env:
