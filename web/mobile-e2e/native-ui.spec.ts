@@ -66,3 +66,34 @@ test("QC membedakan track tersedia dengan suara hening pada MP4", async ({ page 
   await expect(page.getByText("Bagian hening: 0.0–3.0 dtk", { exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
 });
+
+test("perpindahan proyek menyimpan rencana dan melindungi koreksi transkrip", async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 900 });
+  await page.addInitScript(() => {
+    const state = { active_project: "first", projects: [{ id: "first", name: "Proyek pertama", duration_s: 12, output_count: 0 }, { id: "second", name: "Proyek kedua", duration_s: 12, output_count: 0 }], status: "awaiting_review", note: "Fixture proyek.", busy: false, model_ready: true, progress: 1, mode: "clips", analysis_provider: "manual", source: { name: "first.mp4", duration_s: 12, url: "" }, sentences: [{ id: "s1", start_s: 0, end_s: 4, text: "Siapkan alat." }], outputs: [], settings: { clip_count: 3 }, config: { provider: "gemini", model: "", consent: false }, plan: [{ id: "p1", title: "Pilihan manual", start_s: 0, end_s: 8, speed: 1, keep: true, required: false, locked: false, text: "Siapkan alat.", score: 0 }] };
+    const fixture = window as unknown as { projectCalls: { name: string; value: { id?: string; plan?: { start_s: number }[] } }[]; CuplikNative: unknown };
+    fixture.projectCalls = [];
+    fixture.CuplikNative = {
+      getState: () => JSON.stringify(state),
+      openProject(json: string) { const value = JSON.parse(json); fixture.projectCalls.push({ name: "openProject", value }); state.active_project = value.id; state.source.name = "second.mp4"; state.settings.clip_count = 2; },
+      chooseVideo(json: string) { fixture.projectCalls.push({ name: "chooseVideo", value: { plan: JSON.parse(json) } }); },
+    };
+  });
+  await page.goto("/assets/www/mobile.html");
+  await page.getByLabel("Awal p1 (detik)", { exact: true }).fill("1");
+  await page.getByLabel("Proyek", { exact: true }).selectOption("second");
+  expect(await page.evaluate(() => (window as unknown as { projectCalls: unknown[] }).projectCalls.length)).toBe(0);
+  await page.getByRole("button", { name: "Simpan rencana dan buka proyek", exact: true }).click();
+  await expect(page.getByLabel("Awal p1 (detik)", { exact: true })).toHaveValue("0");
+  await expect(page.getByLabel("Jumlah klip", { exact: true })).toHaveValue("2");
+  await page.getByText("Tinjau dan koreksi transkrip", { exact: true }).click();
+  await page.getByRole("button", { name: "Muat transkrip untuk diedit", exact: true }).click();
+  await page.getByLabel("Transkrip JSON", { exact: true }).fill("koreksi belum disimpan");
+  await page.getByRole("button", { name: "Pilih video dari hape", exact: true }).click();
+  await expect(page.getByRole("alert")).toContainText("Simpan koreksi transkrip");
+  await expect(page.getByLabel("Transkrip JSON", { exact: true })).toBeFocused();
+  const calls = await page.evaluate(() => (window as unknown as { projectCalls: { name: string; value: { plan: { start_s: number }[] } }[] }).projectCalls);
+  expect(calls).toHaveLength(1);
+  expect(calls[0].value.plan[0].start_s).toBe(1);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+});

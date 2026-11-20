@@ -12,8 +12,9 @@ import "./mobile.css";
 type Plan = { id: string; title: string; start_s: number; end_s: number; required: boolean; keep: boolean; locked: boolean; speed: number; text: string; score: number };
 type Config = { provider: string; model: string; consent: boolean; has_key?: boolean };
 type Output = { file: string; title: string; duration_s: number; duration_matches: boolean; audio_present: boolean; qc?: { status: string; issues: string[]; note: string; audio: { rms_dbfs: number; peak_dbfs: number; longest_silence_s: number; silence_spans: { start_s: number; end_s: number }[] } | null }; url: string };
-type State = { status: string; note: string; progress: number; busy: boolean; retryable?: boolean; active_job?: { status: string; action: string; attempt: number }; model_ready: boolean; source?: { name: string; duration_s: number; url: string }; plan: Plan[]; sentences: unknown[]; outputs: Output[]; models?: string[]; config: Config; error?: string; mode?: string; analysis_provider?: string };
-type Bridge = { getState(): string; chooseVideo(): void; saveConfig(json: string): void; testConnection(): void; downloadModel(): void; analyze(json: string): void; solve(json: string): void; render(json: string): void; cancel(): void; retryJob(): void; saveTranscript(json: string): void; saveOutput(file: string): void; clearCache(): void };
+type Settings = { language?: string; clip_count?: number; max_clip_seconds?: number; target_seconds?: number; layout?: string; captions?: boolean };
+type State = { active_project?: string; project_name?: string; projects?: { id: string; name: string; duration_s: number; output_count: number }[]; settings?: Settings; status: string; note: string; progress: number; busy: boolean; retryable?: boolean; active_job?: { status: string; action: string; attempt: number }; model_ready: boolean; source?: { name: string; duration_s: number; url: string }; plan: Plan[]; sentences: unknown[]; outputs: Output[]; models?: string[]; config: Config; error?: string; mode?: string; analysis_provider?: string };
+type Bridge = { getState(): string; chooseVideo(plan: string): void; openProject(json: string): void; renameProject(name: string): void; saveConfig(json: string): void; testConnection(): void; downloadModel(): void; analyze(json: string): void; solve(json: string): void; render(json: string): void; cancel(): void; retryJob(): void; saveTranscript(json: string): void; saveOutput(file: string): void; clearCache(): void };
 declare global { interface Window { CuplikNative?: Bridge } }
 const empty: State = { status: "idle", note: "Pilih video dari perangkat.", progress: 0, busy: false, model_ready: false, plan: [], sentences: [], outputs: [], config: { provider: "gemini", model: "", consent: false } };
 
@@ -24,17 +25,30 @@ function App() {
   const [state, setState] = useState(initial), [plan, setPlan] = useState(initial.plan);
   const [config, setConfig] = useState(initial.config), [key, setKey] = useState("");
   const [error, setError] = useState("");
-  const [mode, setMode] = useState(initial.mode ?? "clips"), [language, setLanguage] = useState("id");
-  const [count, setCount] = useState(3), [maximum, setMaximum] = useState(60), [target, setTarget] = useState(60);
-  const [layout, setLayout] = useState("source"), [captions, setCaptions] = useState(true), [transcript, setTranscript] = useState("");
+  const [mode, setMode] = useState(initial.mode ?? "clips"), [language, setLanguage] = useState(initial.settings?.language ?? "id");
+  const [count, setCount] = useState(initial.settings?.clip_count ?? 3), [maximum, setMaximum] = useState(initial.settings?.max_clip_seconds ?? 60), [target, setTarget] = useState(initial.settings?.target_seconds ?? 60);
+  const [layout, setLayout] = useState(initial.settings?.layout ?? "source"), [captions, setCaptions] = useState(initial.settings?.captions ?? true), [transcript, setTranscript] = useState("");
   const canonicalPlan = useRef(JSON.stringify(initial.plan));
+  const canonicalProject = useRef(initial.active_project);
+  const [selectedProject, setSelectedProject] = useState(initial.active_project ?? initial.projects?.[0]?.id ?? "");
+  const [projectName, setProjectName] = useState(initial.project_name ?? initial.source?.name ?? "");
+  const transcriptInput = useRef<HTMLTextAreaElement>(null);
   const refresh = () => {
     if (!window.CuplikNative) return;
-    try { const next: State = JSON.parse(window.CuplikNative.getState()); setState(next); const stamp = JSON.stringify(next.plan); if (stamp !== canonicalPlan.current) { canonicalPlan.current = stamp; setPlan(next.plan); } }
+    try { const next: State = JSON.parse(window.CuplikNative.getState()); setState(next); const changedProject = next.active_project !== canonicalProject.current; if (changedProject) { canonicalProject.current = next.active_project; setSelectedProject(next.active_project ?? next.projects?.[0]?.id ?? ""); setProjectName(next.project_name ?? next.source?.name ?? ""); setMode(next.mode ?? "clips"); setLanguage(next.settings?.language ?? "id"); setCount(next.settings?.clip_count ?? 3); setMaximum(next.settings?.max_clip_seconds ?? 60); setTarget(next.settings?.target_seconds ?? 60); setLayout(next.settings?.layout ?? "source"); setCaptions(next.settings?.captions ?? true); setTranscript(""); } const stamp = JSON.stringify(next.plan); if (changedProject || stamp !== canonicalPlan.current) { canonicalPlan.current = stamp; setPlan(next.plan); } }
     catch (e) { setError((e as Error).message); }
   };
   useEffect(() => { const timer = setInterval(refresh, 1000); return () => clearInterval(timer); }, []);
   const run = (action: (bridge: Bridge) => void) => { setError(""); if (!window.CuplikNative) { setError("Fitur perangkat tersedia di APK Android."); return; } try { action(window.CuplikNative); refresh(); } catch (e) { setError((e as Error).message); } };
+  const canLeaveProject = () => {
+    if (!transcript) return true;
+    try { if (JSON.stringify(JSON.parse(transcript)) === JSON.stringify(state.sentences)) return true; } catch { /* Keep invalid draft visible until corrected. */ }
+    setError("Simpan koreksi transkrip sebelum berpindah proyek atau memilih video baru.");
+    const field = transcriptInput.current;
+    const details = field?.closest("details"); if (details) details.open = true;
+    field?.focus();
+    return false;
+  };
   const update = (id: string, changes: Partial<Plan>) => setPlan(current => current.map(row => row.id === id ? { ...row, ...changes } : row));
   const duration = plan.reduce((total, row) => total + (row.keep ? (row.end_s - row.start_s) / row.speed : 0), 0);
   const analyze = (manual: boolean) => run(bridge => bridge.analyze(JSON.stringify({ mode, language, clip_count: count, max_clip_seconds: maximum, target_seconds: target, layout, captions, manual })));
@@ -42,6 +56,10 @@ function App() {
     <Group justify="space-between"><div><p className="eyebrow">STUDIO VIDEO DI PERANGKATMU</p><h1>cuplik<span className="android-dot">.</span></h1></div><Badge color="turmeric" variant="outline">Android</Badge></Group>
     <p>Video diproses di hape. Analisis AI dapat memakai teks transkrip melalui API.</p>
     {!window.CuplikNative && <p className="notice">Pratinjau UI Android. Buka APK untuk memilih, mentranskrip dan merender video di perangkat.</p>}
+    {(state.projects?.length ?? 0) > 0 && <section aria-labelledby="projects-title"><h2 id="projects-title">Proyek di perangkat</h2>
+      <h3 id="project-open-title">Buka proyek tersimpan</h3><form aria-labelledby="project-open-title" onSubmit={event => { event.preventDefault(); if (canLeaveProject()) run(bridge => bridge.openProject(JSON.stringify({ id: selectedProject, plan }))); }}><fieldset disabled={state.busy}><legend>Pilihan proyek lokal</legend><label htmlFor="android-project">Proyek</label><select id="android-project" name="project_id" value={selectedProject} onChange={event => setSelectedProject(event.target.value)}>{state.projects?.map(project => <option key={project.id} value={project.id}>{project.name} · {project.duration_s.toFixed(0)} dtk</option>)}</select><p>Keputusan rencana saat ini disimpan sebelum proyek lain dibuka. Simpan koreksi transkrip terlebih dahulu.</p><Button type="submit">Simpan rencana dan buka proyek</Button></fieldset></form>
+      <h3 id="project-name-title">Nama proyek aktif</h3><form aria-labelledby="project-name-title" onSubmit={event => { event.preventDefault(); run(bridge => bridge.renameProject(projectName)); }}><fieldset disabled={state.busy}><legend>Identitas proyek</legend><label htmlFor="android-project-name">Nama proyek (wajib, maksimal 80 karakter)</label><input id="android-project-name" name="project_name" required maxLength={80} value={projectName} onChange={event => setProjectName(event.target.value)} /><Button type="submit">Simpan nama proyek</Button></fieldset></form>
+    </section>}
     <details><summary>Pengaturan API AI dan model transkripsi</summary>
       <form aria-label="Pengaturan AI Android" onSubmit={event => { event.preventDefault(); run(bridge => bridge.saveConfig(JSON.stringify({ ...config, api_key: key }))); setKey(""); }}><fieldset disabled={state.busy}><legend>API analisis teks</legend>
         <label htmlFor="ai-provider">Provider</label><select id="ai-provider" name="provider" value={config.provider} onChange={e => { setConfig({ ...config, provider: e.target.value, model: "" }); setKey(""); }}><option value="gemini">Gemini</option><option value="anthropic">Anthropic</option></select>
@@ -54,7 +72,7 @@ function App() {
       <fieldset disabled={state.busy}><legend>Transkripsi di perangkat</legend><p>Whisper tiny multibahasa, sekitar 78 MB. Diunduh sekali; audio ditranskrip di perangkat. Kualitas dan waktu proses bergantung pada rekaman serta kemampuan hape.</p><Button type="button" disabled={state.model_ready} onClick={() => run(bridge => bridge.downloadModel())}>{state.model_ready ? "Model transkripsi siap" : "Unduh model transkripsi"}</Button></fieldset>
       <p>Simpan MP4 ke lokasi pilihanmu sebelum membersihkan penyimpanan aplikasi.</p><Button type="button" disabled={state.busy} onClick={() => run(bridge => bridge.clearCache())}>Bersihkan video dan cache lokal</Button>
     </details>
-    <div className="create-grid"><section><h2>Sumber video</h2><Button type="button" className="studio-primary" disabled={state.busy} onClick={() => run(bridge => bridge.chooseVideo())}>Pilih video dari hape</Button>
+    <div className="create-grid"><section><h2>Sumber video</h2><Button type="button" className="studio-primary" disabled={state.busy} onClick={() => { if (canLeaveProject()) run(bridge => bridge.chooseVideo(JSON.stringify(plan))); }}>Pilih video dari hape</Button>
       {state.source && <><p>{state.source.name} · {state.source.duration_s.toFixed(1)} detik</p><video controls playsInline preload="metadata" src={state.source.url} /></>}
       <small>Berkas lokal maksimal satu jam / 2 GB. Pertahankan ruang kosong untuk audio, model dan hasil ekspor.</small>
     </section>
@@ -68,7 +86,7 @@ function App() {
       {!state.model_ready && <small>Unduh model di Pengaturan untuk memakai transkripsi. Rencana manual dapat dipakai langsung.</small>}
     </fieldset></form></div>
     <section aria-label="Progres Android"><p>Status: <strong data-testid="android-status">{state.status}</strong></p><progress max={1} value={state.busy && state.progress <= 0 ? undefined : Math.max(0, Math.min(1, state.progress))} aria-label="Progres video Android" /><p role="status">{state.note}</p>{(error || state.error) && <p role="alert" className="error">{error || state.error}</p>}{state.busy && <Button type="button" disabled={state.active_job?.status === "cancelling"} onClick={() => run(bridge => bridge.cancel())}>{state.active_job?.status === "cancelling" ? "Menunggu pembatalan…" : "Batalkan proses"}</Button>}{state.retryable && <><p>Pekerjaan sebelumnya dapat dicoba ulang dengan sumber dan pengaturan semula. Checkpoint serta hasil selesai akan digunakan kembali.</p><Button type="button" onClick={() => run(bridge => bridge.retryJob())}>Coba ulang pekerjaan sebelumnya</Button></>}</section>
-    {state.sentences.length > 0 && <details><summary>Tinjau dan koreksi transkrip</summary><p>Waktu caption berasal dari segmen transkripsi. Periksa kecocokan dengan audio sebelum ekspor.</p><Button type="button" onClick={() => setTranscript(JSON.stringify(state.sentences, null, 2))}>Muat transkrip untuk diedit</Button><label htmlFor="android-transcript">Transkrip JSON</label><textarea id="android-transcript" name="transcript" value={transcript} onChange={e => setTranscript(e.target.value)} /><Button type="button" disabled={state.busy || !transcript} onClick={() => run(bridge => bridge.saveTranscript(transcript))}>Simpan koreksi transkrip</Button></details>}
+    {state.sentences.length > 0 && <details><summary>Tinjau dan koreksi transkrip</summary><p>Waktu caption berasal dari segmen transkripsi. Periksa kecocokan dengan audio sebelum ekspor.</p><Button type="button" onClick={() => setTranscript(JSON.stringify(state.sentences, null, 2))}>Muat transkrip untuk diedit</Button><label htmlFor="android-transcript">Transkrip JSON</label><textarea ref={transcriptInput} id="android-transcript" name="transcript" value={transcript} onChange={e => setTranscript(e.target.value)} /><Button type="button" disabled={state.busy || !transcript} onClick={() => run(bridge => { bridge.saveTranscript(transcript); if (!JSON.parse(bridge.getState()).error) setTranscript(""); })}>Simpan koreksi transkrip</Button></details>}
     {plan.length > 0 && <section><h2>Tinjau pilihan {state.mode === "condense" ? "Ringkas" : "Klip"}</h2><p>{state.analysis_provider === "manual" ? "Pilihan manual; belum dinilai oleh AI." : `Analisis teks oleh ${state.analysis_provider}. Tinjau sumber, konteks dan langkah yang tidak diucapkan.`}</p>
       <form aria-label="Tinjau rencana Android" onSubmit={event => { event.preventDefault(); run(bridge => bridge.render(JSON.stringify({ plan }))); }}><fieldset disabled={state.busy}><legend>Keputusan sebelum ekspor</legend>
         {plan.map(row => <fieldset key={row.id}><legend>{row.title}</legend><p>{row.text}</p>

@@ -262,17 +262,7 @@ public final class ProcessingService extends Service {
               duration,
               "url",
               "https://appassets.androidplatform.net/media/" + file.getName());
-      update(
-          s -> {
-            s.put("source", source);
-            s.put("sentences", new JSONArray());
-            s.put("plan", new JSONArray());
-            s.put("next_chunk", 0);
-            s.put("status", "ready");
-            s.put("progress", 0);
-            s.put("note", "Video tersimpan lokal. Pilih transkripsi atau susun rencana manual.");
-            s.remove("error");
-          });
+      store.acceptSource(jobId, source);
     } catch (Exception error) {
       file.delete();
       throw error;
