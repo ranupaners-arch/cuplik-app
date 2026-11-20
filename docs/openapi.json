@@ -1498,6 +1498,45 @@
         }
       }
     },
+    "/api/outputs/{output_id}/coherence": {
+      "get": {
+        "summary": "Coherence Report",
+        "operationId": "coherence_report_api_outputs__output_id__coherence_get",
+        "parameters": [
+          {
+            "name": "output_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Output Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoherenceReport"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/llm/sample": {
       "post": {
         "summary": "Sample Llm",
@@ -2133,6 +2172,11 @@
             "type": "boolean",
             "title": "Locked",
             "default": false
+          },
+          "timelapse_approved": {
+            "type": "boolean",
+            "title": "Timelapse Approved",
+            "default": false
           }
         },
         "type": "object",
@@ -2159,7 +2203,7 @@
           },
           "speed": {
             "type": "number",
-            "maximum": 1.25,
+            "maximum": 8.0,
             "minimum": 1.0,
             "title": "Speed",
             "default": 1.15
@@ -2168,6 +2212,17 @@
             "type": "boolean",
             "title": "Locked",
             "default": true
+          },
+          "timelapse_approved": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timelapse Approved"
           }
         },
         "additionalProperties": false,
@@ -2740,6 +2795,144 @@
         ],
         "title": "ClipView"
       },
+      "CoherenceIssue": {
+        "properties": {
+          "at_id": {
+            "type": "string",
+            "title": "At Id"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "dangling_reference",
+              "missing_prerequisite",
+              "abrupt_jump"
+            ],
+            "title": "Type"
+          },
+          "fix": {
+            "type": "string",
+            "enum": [
+              "restore",
+              "review"
+            ],
+            "title": "Fix"
+          },
+          "restore_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 5,
+            "title": "Restore Ids"
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Note"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "at_id",
+          "type",
+          "fix",
+          "note"
+        ],
+        "title": "CoherenceIssue"
+      },
+      "CoherenceReport": {
+        "properties": {
+          "version": {
+            "type": "integer",
+            "title": "Version",
+            "default": 1
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "passed",
+              "needs_review"
+            ],
+            "title": "Status"
+          },
+          "stale": {
+            "type": "boolean",
+            "title": "Stale",
+            "default": false
+          },
+          "provider": {
+            "type": "string",
+            "title": "Provider"
+          },
+          "model": {
+            "type": "string",
+            "title": "Model"
+          },
+          "rounds": {
+            "type": "integer",
+            "maximum": 2.0,
+            "minimum": 1.0,
+            "title": "Rounds"
+          },
+          "plan_fingerprint": {
+            "type": "string",
+            "title": "Plan Fingerprint"
+          },
+          "issues": {
+            "items": {
+              "$ref": "#/components/schemas/CoherenceIssue"
+            },
+            "type": "array",
+            "title": "Issues"
+          },
+          "restored_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Restored Ids"
+          },
+          "dropped_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Dropped Ids"
+          },
+          "note": {
+            "type": "string",
+            "title": "Note"
+          },
+          "min_duration_s": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Duration S"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "status",
+          "provider",
+          "model",
+          "rounds",
+          "plan_fingerprint",
+          "issues",
+          "restored_ids",
+          "dropped_ids",
+          "note"
+        ],
+        "title": "CoherenceReport"
+      },
       "CondenseVisionSettings": {
         "properties": {
           "enabled": {
@@ -2861,6 +3054,65 @@
       },
       "OutlineReview": {
         "properties": {
+          "coherence_enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coherence Enabled"
+          },
+          "chapter_cards": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chapter Cards"
+          },
+          "timelapse_enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timelapse Enabled"
+          },
+          "max_visual_speed": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 8.0,
+                "minimum": 2.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Visual Speed"
+          },
+          "max_speech_speed": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 1.25,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Speech Speed"
+          },
           "chapters": {
             "items": {
               "$ref": "#/components/schemas/ChapterChoice"
@@ -3057,6 +3309,16 @@
                 "type": "null"
               }
             ]
+          },
+          "coherence_report": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CoherenceReport"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -3128,6 +3390,28 @@
             "minimum": 1.0,
             "title": "Max Speech Speed",
             "default": 1.15
+          },
+          "timelapse_enabled": {
+            "type": "boolean",
+            "title": "Timelapse Enabled",
+            "default": false
+          },
+          "max_visual_speed": {
+            "type": "number",
+            "maximum": 8.0,
+            "minimum": 2.0,
+            "title": "Max Visual Speed",
+            "default": 8
+          },
+          "coherence_enabled": {
+            "type": "boolean",
+            "title": "Coherence Enabled",
+            "default": false
+          },
+          "chapter_cards": {
+            "type": "boolean",
+            "title": "Chapter Cards",
+            "default": false
           },
           "focus": {
             "type": "string",
@@ -3220,6 +3504,28 @@
             "minimum": 1.0,
             "title": "Max Speech Speed",
             "default": 1.15
+          },
+          "timelapse_enabled": {
+            "type": "boolean",
+            "title": "Timelapse Enabled",
+            "default": false
+          },
+          "max_visual_speed": {
+            "type": "number",
+            "maximum": 8.0,
+            "minimum": 2.0,
+            "title": "Max Visual Speed",
+            "default": 8
+          },
+          "coherence_enabled": {
+            "type": "boolean",
+            "title": "Coherence Enabled",
+            "default": false
+          },
+          "chapter_cards": {
+            "type": "boolean",
+            "title": "Chapter Cards",
+            "default": false
           },
           "focus": {
             "type": "string",
@@ -3785,6 +4091,65 @@
       },
       "SolveRequest": {
         "properties": {
+          "coherence_enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coherence Enabled"
+          },
+          "chapter_cards": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chapter Cards"
+          },
+          "timelapse_enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timelapse Enabled"
+          },
+          "max_visual_speed": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 8.0,
+                "minimum": 2.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Visual Speed"
+          },
+          "max_speech_speed": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 1.25,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Speech Speed"
+          },
           "target_seconds": {
             "type": "number",
             "maximum": 3600.0,

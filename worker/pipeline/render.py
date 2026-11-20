@@ -1,14 +1,16 @@
 import hashlib
 import json
 import tempfile
+import textwrap
 import time
 from pathlib import Path
 
 from api.app.config import get_settings
-from api.app.models import Beat, Clip
-from api.app.schemas import RetentionSettings, Transcript, VisualFocus
+from api.app.models import Beat, Chapter, Clip
+from api.app.schemas import OutputSettings, RetentionSettings, Transcript, VisualFocus
 from worker.pipeline.audio import normalize_audio
 from worker.pipeline.captions import caption_plan, timed_tokens, write_ass
+from worker.pipeline.condense_policy import validate_speed
 from worker.pipeline.delivery import effective_layout, inspect_delivery
 from worker.pipeline.focus import apply_focus
 from worker.pipeline.framepipe import encode_clip
@@ -60,7 +62,14 @@ def ass_text(text: str) -> str:
 
 
 def subtitles(
-    path: Path, lines: list[tuple[float, float, str]], width: int, height: int, hook: str = ""
+    path: Path,
+    lines: list[tuple[float, float, str]],
+    width: int,
+    height: int,
+    hook: str = "",
+    *,
+    speed_badge: tuple[float, float] | None = None,
+    chapter_card: tuple[str, float] | None = None,
 ):
     text = f"""[Script Info]
 ScriptType: v4.00+
@@ -71,6 +80,8 @@ WrapStyle: 0
 Format: Name,Fontname,Fontsize,PrimaryColour,SecondaryColour,OutlineColour,BackColour,Bold,Italic,Underline,StrikeOut,ScaleX,ScaleY,Spacing,Angle,BorderStyle,Outline,Shadow,Alignment,MarginL,MarginR,MarginV,Encoding
 Style: Caption,DejaVu Sans,{max(16, width // 20)},&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,-1,0,0,0,100,100,0,0,1,2,0,2,24,24,{height // 5},1
 Style: Hook,DejaVu Sans,{max(18, width // 18)},&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,-1,0,0,0,100,100,0,0,1,2,0,8,24,24,{height // 6},1
+Style: Speed,DejaVu Sans,{max(12, round(height * 0.024))},&H00FFFFFF,&H00FFFFFF,&H70000000,&H70000000,-1,0,0,0,100,100,0,0,3,3,0,9,12,{max(12, round(width * 0.04))},{max(12, round(height * 0.04))},1
+Style: Chapter,DejaVu Sans,{max(12, round(height * 0.025))},&H00FFFFFF,&H00FFFFFF,&H70000000,&H70000000,-1,0,0,0,100,100,0,0,3,3,0,7,{max(12, round(width * 0.04))},{width // 2},{max(12, round(height * 0.04))},1
 [Events]
 Format: Layer,Start,End,Style,Name,MarginL,MarginR,MarginV,Effect,Text
 """
@@ -81,6 +92,16 @@ Format: Layer,Start,End,Style,Name,MarginL,MarginR,MarginV,Effect,Text
             )
     if hook:
         text += f"Dialogue: 1,0:00:00.00,{ass_time(min(3, max((e for _, e, _ in lines), default=3)))},Hook,,0,0,0,,{ass_text(hook)}\n"
+    if speed_badge:
+        rate, duration = speed_badge
+        text += f"Dialogue: 1,0:00:00.00,{ass_time(duration)},Speed,,0,0,0,,CEPAT {rate:g}x - AUDIO HENING\n"
+    if chapter_card:
+        title, duration = chapter_card
+        columns = max(12, min(42, int(width * 0.46 / (max(12, round(height * 0.025)) * 0.6))))
+        title = "\n".join(
+            textwrap.wrap(" ".join(title.split()), width=columns, max_lines=2, placeholder="…")
+        )
+        text += f"Dialogue: 1,0:00:00.00,{ass_time(duration)},Chapter,,0,0,0,,{ass_text(title)}\n"
     path.write_text(text, encoding="utf-8")
 
 
@@ -96,6 +117,7 @@ def encode(
     framing: FramingPlan | None = None,
     caption_band: bool = False,
     hook_band: bool = False,
+    mute_audio: bool = False,
 ):
     height = get_settings().render_height
     width = (height * 9 // 16 if portrait else height * 16 // 9) // 2 * 2
@@ -131,7 +153,7 @@ def encode(
             "-vf",
             ",".join(filters),
             "-af",
-            f"atempo={speed},aresample=48000",
+            tempo_filter(speed) + (",volume=0" if mute_audio else "") + ",aresample=48000",
             "-c:v",
             "libx264",
             "-preset",
@@ -146,6 +168,7 @@ def encode(
             "aac",
             "-b:a",
             "160k" if framing else "128k",
+            *(["-t", str((end - start) / speed)] if mute_audio else []),
             "-movflags",
             "+faststart",
             str(temporary),
@@ -154,6 +177,15 @@ def encode(
         timeout=get_settings().job_timeout_seconds,
     )
     temporary.replace(destination)
+
+
+def tempo_filter(rate: float) -> str:
+    stages = []
+    while rate > 2:
+        stages.append("atempo=2")
+        rate /= 2
+    stages.append(f"atempo={rate:.10g}")
+    return ",".join(stages)
 
 
 def render_clip(
@@ -261,23 +293,44 @@ def render_clip(
 
 
 def render_condensed(
-    source: Path, beats: list[Beat], directory: Path, captions: bool, progress
+    source: Path,
+    beats: list[Beat],
+    directory: Path,
+    captions: bool,
+    progress,
+    *,
+    settings: OutputSettings | None = None,
+    chapters: list[Chapter] | None = None,
 ) -> Path:
     kept = sorted((b for b in beats if b.decision != "drop"), key=lambda b: b.start_s)
     if not kept:
         raise ValueError("Tidak ada beat yang dipertahankan")
     height = get_settings().render_height
+    settings = settings or OutputSettings()
+    chapter_titles = {c.id: c.title.strip() or f"Bab {c.order}" for c in (chapters or [])}
+    if settings.chapter_cards and any(b.chapter_id not in chapter_titles for b in kept):
+        raise ValueError("Judul bab diperlukan untuk menampilkan kartu bab")
+    card_remaining = {identifier: 2.0 for identifier in chapter_titles}
     parts, spans = [], []
     elapsed = 0.0
     for i, beat in enumerate(kept):
         data = beat.model_dump()
         if not beat.evidence:
             data.pop("evidence")
+        if not beat.timelapse_approved:
+            data.pop("timelapse_approved")
+        rate = beat.speed if beat.decision == "speed" else 1
+        audio_mode = validate_speed(beat, rate, settings)
+        if audio_mode == "muted":
+            data["timelapse_renderer"] = 2
+        card = None
+        if settings.chapter_cards and card_remaining[beat.chapter_id] > 0.005:
+            card = (chapter_titles[beat.chapter_id], card_remaining[beat.chapter_id])
+            data["chapter_card"] = {"version": 1, "title": card[0], "duration_s": round(card[1], 3)}
         key = fingerprint({"beat": data, "height": height, "captions": captions})[:20]
         part = directory / f"part-{key}.mp4"
         if not part.exists():
             ass = directory / f"part-{key}.ass"
-            rate = beat.speed if beat.decision == "speed" else 1
             subtitles(
                 ass,
                 [(0, (beat.end_s - beat.start_s) / rate, beat.text)]
@@ -285,6 +338,10 @@ def render_condensed(
                 else [],
                 height * 16 // 9 // 2 * 2,
                 height,
+                speed_badge=(rate, (beat.end_s - beat.start_s) / rate)
+                if audio_mode == "muted"
+                else None,
+                chapter_card=card,
             )
             encode(
                 source,
@@ -294,6 +351,7 @@ def render_condensed(
                 portrait=False,
                 speed=rate,
                 subtitle_path=ass,
+                mute_audio=audio_mode == "muted",
             )
         parts.append(part)
         measured = probe_file(part)["duration_s"]
@@ -304,6 +362,8 @@ def render_condensed(
                 "sentence_id": beat.sentence_id,
                 "kind": beat.kind,
                 "source_beat_id": beat.evidence.get("id"),
+                "speed": rate,
+                "audio_mode": audio_mode,
                 "source_start_s": beat.start_s,
                 "source_end_s": beat.end_s,
                 "output_start_s": elapsed,
@@ -311,6 +371,9 @@ def render_condensed(
                 "part": part.name,
             }
         )
+        if card:
+            spans[-1]["chapter_card"] = {"title": card[0], "duration_s": min(measured, card[1])}
+            card_remaining[beat.chapter_id] = max(0, card[1] - measured)
         elapsed += measured
         progress((i + 1) / len(kept), f"Merender bagian {i + 1}/{len(kept)}")
     concat = directory / "concat.txt"

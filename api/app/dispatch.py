@@ -94,7 +94,7 @@ def recover_tasks() -> int:
                         subject_id=output.id,
                         payload={
                             "render_only": output.mode == "condense"
-                            and output.stage in ("solve", "render"),
+                            and output.stage in ("solve", "coherence", "render"),
                             "clip_id": None,
                         },
                     )

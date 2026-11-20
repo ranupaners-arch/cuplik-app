@@ -9,6 +9,7 @@ from api.app.jobs import emit
 from api.app.models import Beat, Chapter, Clip, Output, Project
 from api.app.schemas import OutlinePlan, OutputSettings, Transcript
 from worker.pipeline.chapters import write_chapter_export
+from worker.pipeline.coherence import check_coherence
 from worker.pipeline.ingest import ingest_project as ingest_project
 from worker.pipeline.llm import LLMClient
 from worker.pipeline.media import probe_file
@@ -311,12 +312,37 @@ def _run_output(output_id: str, render_only: bool = False, clip_id: str | None =
                     beats = list(
                         session.exec(select(Beat).where(Beat.output_id == output_id)).all()
                     )
+                    chapters = list(
+                        session.exec(select(Chapter).where(Chapter.output_id == output_id)).all()
+                    )
+                    settings = OutputSettings.model_validate(output.settings)
+                    if settings.coherence_enabled:
+                        report = check_coherence(
+                            output, beats, chapters, client, directory, ctx.progress
+                        )
+                        for beat in beats:
+                            session.add(beat)
+                        for chapter in chapters:
+                            chapter.kept_s = sum(
+                                (b.end_s - b.start_s) / b.speed
+                                for b in beats
+                                if b.chapter_id == chapter.id and b.decision != "drop"
+                            )
+                            session.add(chapter)
+                        output.actual_duration_s = sum(c.kept_s for c in chapters)
+                        session.add(output)
+                        session.commit()
+                        if report.status == "needs_review":
+                            ctx.progress("review", 0.4, report.note, status="awaiting_review")
+                            return
                     path = render_condensed(
                         source,
                         beats,
                         directory,
                         output.settings.get("captions", True),
                         lambda fraction, note: ctx.progress("render", 0.45 + 0.5 * fraction, note),
+                        settings=settings,
+                        chapters=chapters,
                     )
                     output = session.get(Output, output_id)
                     output.actual_duration_s = probe_file(path)["duration_s"]

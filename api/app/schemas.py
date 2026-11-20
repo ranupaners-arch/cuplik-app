@@ -196,6 +196,10 @@ class OutputSettings(StrictModel):
     max_clip_seconds: float = Field(default=60, ge=3, le=180)
     target_seconds: float = Field(default=20, ge=3, le=3600)
     max_speech_speed: float = Field(default=1.15, ge=1, le=1.25)
+    timelapse_enabled: bool = False
+    max_visual_speed: float = Field(default=8, ge=2, le=8)
+    coherence_enabled: bool = False
+    chapter_cards: bool = False
     focus: str = Field(default="", max_length=1000)
     captions: bool = True
     purpose: Purpose = "tutorial"
@@ -323,18 +327,27 @@ class ChapterChoice(StrictModel):
     required: bool
 
 
-class OutlineReview(StrictModel):
+class CondenseTimingPatch(StrictModel):
+    coherence_enabled: bool | None = None
+    chapter_cards: bool | None = None
+    timelapse_enabled: bool | None = None
+    max_visual_speed: float | None = Field(default=None, ge=2, le=8)
+    max_speech_speed: float | None = Field(default=None, ge=1, le=1.25)
+
+
+class OutlineReview(CondenseTimingPatch):
     chapters: list[ChapterChoice]
     target_seconds: float = Field(ge=3, le=3600)
 
 
 class BeatPatch(StrictModel):
     decision: Literal["keep", "speed", "drop"]
-    speed: float = Field(default=1.15, ge=1, le=1.25)
+    speed: float = Field(default=1.15, ge=1, le=8)
     locked: bool = True
+    timelapse_approved: bool | None = None
 
 
-class SolveRequest(StrictModel):
+class SolveRequest(CondenseTimingPatch):
     target_seconds: float = Field(ge=3, le=3600)
     chapters: list[ChapterChoice] | None = None
 
@@ -473,6 +486,33 @@ class VisionReport(StrictModel):
     frames: list[VisionFrame]
 
 
+class CoherenceIssue(StrictModel):
+    at_id: str
+    type: Literal["dangling_reference", "missing_prerequisite", "abrupt_jump"]
+    fix: Literal["restore", "review"]
+    restore_ids: list[str] = Field(default_factory=list, max_length=5)
+    note: str = Field(min_length=1, max_length=500)
+
+
+class CoherenceCheck(StrictModel):
+    issues: list[CoherenceIssue] = Field(max_length=20)
+
+
+class CoherenceReport(StrictModel):
+    version: int = 1
+    status: Literal["passed", "needs_review"]
+    stale: bool = False
+    provider: str
+    model: str
+    rounds: int = Field(ge=1, le=2)
+    plan_fingerprint: str
+    issues: list[CoherenceIssue]
+    restored_ids: list[str]
+    dropped_ids: list[str]
+    note: str
+    min_duration_s: float | None = None
+
+
 class OutputDetail(BaseModel):
     output: Output
     project: Project
@@ -482,6 +522,7 @@ class OutputDetail(BaseModel):
     transcript: Transcript | None
     chapter_export: ChapterExport | None = None
     vision_report: VisionReport | None = None
+    coherence_report: CoherenceReport | None = None
 
 
 class AnnotationRange(StrictModel):

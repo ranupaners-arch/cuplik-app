@@ -1,0 +1,3 @@
+Only these kept beat IDs are owned by this window: {{ owned_ids | tojson }}
+Surrounding rows provide context only. Do not report issues at their IDs.
+<script>{{ script | tojson }}</script>

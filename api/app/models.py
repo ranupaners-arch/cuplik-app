@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from sqlalchemy import JSON, Column, DateTime, Float, String, UniqueConstraint
+from sqlalchemy import JSON, Boolean, Column, DateTime, Float, String, UniqueConstraint
 from sqlmodel import Field, SQLModel
 
 
@@ -158,6 +158,9 @@ class Beat(SQLModel, table=True):
     decision: str = "keep"
     speed: float = 1
     locked: bool = False
+    timelapse_approved: bool = Field(
+        default=False, sa_column=Column(Boolean, nullable=False, server_default="0")
+    )
 
 
 class JobEvent(SQLModel, table=True):
