@@ -110,10 +110,21 @@ public class ServiceWorkflowTest {
       MediaMetadataRetriever metadata = new MediaMetadataRetriever();
       try {
         metadata.setDataSource(mp4.getPath());
-        assertEquals(
-            "720", metadata.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH));
-        assertEquals(
-            "1280", metadata.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT));
+        int width =
+            Integer.parseInt(
+                metadata.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH));
+        int height =
+            Integer.parseInt(
+                metadata.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT));
+        String rotation =
+            metadata.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION);
+        if ("90".equals(rotation) || "270".equals(rotation)) {
+          int swapped = width;
+          width = height;
+          height = swapped;
+        }
+        assertEquals(720, width);
+        assertEquals(1280, height);
       } finally {
         metadata.release();
       }
