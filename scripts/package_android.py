@@ -30,7 +30,8 @@ def package(build: Path, output: Path, certificate: Path) -> Path:
             if f"lib/{abi}/libcuplik-whisper.so" not in names:
                 raise ValueError(f"Native engine is missing for {abi}.")
         forbidden = (".p12", ".jks", ".keystore", ".f32", ".wav", ".mp4", ".bin")
-        if any(name.lower().endswith(forbidden) for name in names):
+        # kotlinx.coroutines ships this runtime probe; it is neither an ASR model nor test media.
+        if any(name != "DebugProbesKt.bin" and name.lower().endswith(forbidden) for name in names):
             raise ValueError("APK includes a private key, model or test media asset.")
     fingerprint = certificate.read_text().strip()
     if len(fingerprint) != 64 or any(char not in "0123456789abcdef" for char in fingerprint):
