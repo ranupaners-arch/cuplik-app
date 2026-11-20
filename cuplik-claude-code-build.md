@@ -24,7 +24,7 @@ Instruksi pengguna saat ini: bangun dasar fungsional, sample API LLM dan workflo
 - [x] `/api/health`, satu worker RQ, dan SSE `/api/outputs/{id}/events`. Workflow demo nyata menggantikan kebutuhan job dummy.
 - [x] Navigasi Buat, Riwayat, Preferensi, ditambah Uji LLM; tanpa penerapan desain.
 - [x] `.env.example`, Docker Compose empat layanan, dan pengembangan native.
-- [x] Kontrak `expected.json` pada `eval/golden/README.md`. Evaluasi kualitas belum dilakukan.
+- [x] Kontrak `expected.json` diimplementasikan pada `eval/evaluate.py`. Evaluasi kualitas belum dilakukan.
 - [ ] Penerapan token dan tema: ditunda sesuai instruksi pengguna.
 - [x] Pengguna memberi instruksi "lanjut" setelah checkpoint Fase 0.
 
@@ -44,7 +44,7 @@ Audit dan perkuat implementasi yang sudah ada, jangan membangun ulang: probe You
 - [x] Task outbox SQLite, pengiriman ulang setelah Redis pulih, dan recovery worker berdasarkan lock proses.
 - [x] Pemeriksaan pembaruan yt-dlp saat startup dan setiap hari pukul 03:00; instalasi terisolasi dan fallback.
 - [x] Tes offline, browser, dan uji video Indonesia nyata dengan penghentian paksa worker.
-- [x] Pengguna memberi instruksi "lanjutkan" setelah [checkpoint Fase 1](docs/phase-1-review.md).
+- [x] Pengguna memberi instruksi "lanjutkan" setelah checkpoint Fase 1.
 
 ## Fase 2 — kualitas pemilihan Klip
 
@@ -59,7 +59,7 @@ Adaptasikan library prompt asli ke schema fondasi. Tambahkan Moment IQ, validasi
 - [x] Evaluator IoU ≥0,5, perbandingan sebelum/sesudah, fixture sintetis dan penanda kualitas yang belum dijalankan.
 - [x] Tes backend/browser dan integrasi media Indonesia nyata dengan transkrip per kata.
 - [ ] Evaluasi kualitas editorial pada 10 video beranotasi manusia dengan provider nyata: dataset belum tersedia.
-- [x] Pengguna memeriksa [checkpoint Fase 2](docs/phase-2-review.md) dan meminta caption lebih ringkas serta video lebih jelas.
+- [x] Pengguna memeriksa checkpoint Fase 2 dan meminta caption lebih ringkas serta video lebih jelas.
 
 ### Koreksi hasil review Fase 2
 
@@ -67,7 +67,7 @@ Adaptasikan library prompt asli ke schema fondasi. Tambahkan Moment IQ, validasi
 - [x] Caption frasa pendek, ukuran font terukur, area terpisah dan penekanan hook duplikat.
 - [x] Pemutar lebih besar, pilihan pembingkaian dan tombol memperbarui hasil lama tanpa LLM/ASR ulang.
 - [x] Tiga contoh video Indonesia dirender ulang, tes backend/browser dan runtime Docker.
-- [x] Pengguna menyetujui [hasil perbaikan render](docs/adaptive-render-review.md) dan memberi instruksi "lanjut" untuk Fase 3.
+- [x] Pengguna menyetujui hasil perbaikan render dan memberi instruksi "lanjut" untuk Fase 3.
 
 ## Fase 3 — video Klip produksi
 
@@ -107,7 +107,7 @@ Perkuat editor caption/hook, render ulang, dan glosarium yang sudah ada; tambahk
 - [x] Tes backend/browser, build native/image produksi, smoke empat layanan Docker, migrasi salinan data lama, serta contoh video Indonesia.
 - [ ] Gate kualitas MVP: golden set manusia/provider nyata dan pemeriksaan sinkron ucapan manual ±100 ms belum tersedia.
 - [ ] Gate performa MVP: video Indonesia 60 menit → ≥5 klip dalam ≤15 menit pada Mac M-series belum diukur; mesin sesi ini Linux ARM64.
-- [x] Setelah [checkpoint Fase 4](docs/phase-4-review.md), pengguna meminta kelanjutan PR pekerjaan. Awal Fase 5 dibatasi ke daftar bab/paket Ringkas yang ringan.
+- [x] Setelah checkpoint Fase 4, pengguna meminta kelanjutan PR pekerjaan. Awal Fase 5 dibatasi ke daftar bab/paket Ringkas yang ringan.
 
 ## Fase 5 — Ringkas produksi
 
@@ -119,17 +119,25 @@ Perluas workflow outline/solver/render yang sudah ada dengan beat visual, vision
 - [x] Indeks bab untuk tinjauan dan validasi teks YouTube: mulai 00:00, minimal tiga timestamp berurutan, setiap bab minimal 10 detik.
 - [x] Unduh indeks TXT/laporan JSON dan paket ZIP Ringkas; teks YouTube disertakan hanya ketika pemeriksaan format lolos.
 - [x] Hasil lama tetap terbaca dengan penanda waktu rencana yang belum diverifikasi.
-- [x] Uji API, media, browser, tipe dan build; rincian pada [review daftar bab Ringkas](docs/ringkas-chapters-review.md).
+- [x] Uji API, media, browser, tipe dan build.
 - [x] Workflow anotasi manual Klip/Ringkas: siapkan sumber tanpa prediksi LLM, draft/review, revisi, validasi konflik dan ekspor paket dengan jejak sumber/transkrip.
 - [x] Evaluator Ringkas memakai cakupan rentang sumber yang benar-benar dirender, recall bab/spesifikasi, serta deviasi durasi. Anotasi assisted, demo dan mock dipisahkan dari kualitas independen.
 - [x] Fondasi fokus spasial Klip: area manual dan proposal aktivitas lokal opsional, fallback aman, jejak frame dan QC. Bukan pengenalan tangan/objek atau pemilihan beat visual Ringkas.
 - [x] Ringkas opsional memakai beat bicara dan jeda transkrip ≥1,5 detik, dipotong pada perubahan adegan sampel/maksimal 20 detik; aktivitas lokal 2 fps sebagai petunjuk.
 - [x] Sampling 5/15 detik dan adaptor gambar Gemini/Anthropic/Ollama, budget sebelum LLM, cache per tahap, laporan frame yang dapat ditinjau. Sampel 512 px atau 1024 px untuk layar; belum mengukur kualitas vision nyata.
 - [x] Anotasi label/spec verbatim dan outline berdasarkan ID beat. Kode menjaga spesifikasi, instruksi pertama, hasil dan visual yang belum jelas; pengguna tetap meninjau sebelum render.
+- [x] Solver mempertahankan kunci, memilih isi menurut nilai/durasi, memisahkan batas narasi dan visual, serta memprioritaskan timelapse yang telah disetujui sebelum mempercepat narasi.
+- [x] Timelapse 2–8× untuk manual/idle/repeat visual dengan persetujuan per beat; audio hening, penanda kecepatan, timeline aktual dan pengamanan yang sama pada API/solver/renderer.
+- [x] Pemeriksaan koherensi naskah opsional dengan ID sumber tervalidasi, cache dan maksimal dua putaran per persetujuan. Pemulihan konteks menjaga kunci/bagian wajib, menghitung ulang durasi dan mengembalikan rencana ke tinjauan. Laporan lama ditandai bila rencana berubah.
+- [x] Overlay judul bab opsional hingga dua detik, berlanjut melintasi beat pendek, tanpa menambah durasi atau mengubah audio.
+- [x] QC Ringkas: normalisasi audio dua lintasan, pemeriksaan file akhir dan timeline, pengecualian hening timelapse sesuai rentang persetujuan, serta laporan API/ZIP yang dapat ditinjau.
 - [ ] Pengisian dan pengukuran dataset manusia: 10 sumber Klip dan 5 sumber Ringkas unik dengan provider nyata.
-- [ ] Pelacakan aksi/tangan/objek sepanjang adegan, video sepenuhnya tanpa transkrip, timelapse, koherensi dan kartu bab. Fase 5 belum selesai.
+- [ ] Pelacakan aksi/tangan/objek sepanjang adegan dan video sepenuhnya tanpa transkrip. Kualitas pemeriksaan koherensi dengan model nyata belum diukur. Fase 5 belum selesai.
 
-Checkpoint sebelumnya: [anotasi, fokus visual dan pilihan Mantine](docs/annotation-vision-review.md), disetujui pengguna. Checkpoint saat ini: [beat visual dan vision Ringkas](docs/ringkas-vision-review.md). Berhenti untuk tinjauan sebelum menambah timelapse/koherensi.
+Status saat ini: QC Ringkas tersedia. Pengguna meminta kelanjutan berurutan ke UI responsif Mantine dan APK, dengan branch/PR tersendiri serta CI pada setiap perubahan.
+
+- [x] UI Mantine mengikuti token studio Cuplik, font lokal, panel video responsif, form dan navigasi yang dapat diakses pada hape/tablet/laptop.
+- [ ] APK Android dengan transkripsi dan pemrosesan video pada perangkat serta analisis transkrip melalui API LLM. Aplikasi tetap online; video tidak perlu diunggah untuk render.
 
 ## Fase 6
 

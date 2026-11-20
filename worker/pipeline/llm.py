@@ -257,6 +257,8 @@ class LLMClient:
     @staticmethod
     def _mock(name: str, variables: dict) -> dict:
         sentences = variables.get("sentences", [])
+        if name == "coherence_checker":
+            return {"issues": []}
         if name == "frame_describer":
             return {
                 "frames": [

@@ -210,6 +210,6 @@ def test_visual_evidence_upgrade_preserves_reviewed_legacy_beats(client, tmp_pat
     )
     with sqlite3.connect(database) as db:
         assert db.execute(
-            "SELECT text,required,decision,speed,locked,evidence FROM beat WHERE id='b'"
-        ).fetchone() == ("Atur 120 mm.", 1, "speed", 1.1, 1, "{}")
+            "SELECT text,required,decision,speed,locked,evidence,timelapse_approved FROM beat WHERE id='b'"
+        ).fetchone() == ("Atur 120 mm.", 1, "speed", 1.1, 1, "{}", 0)
         assert db.execute("PRAGMA foreign_key_check").fetchall() == []

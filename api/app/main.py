@@ -46,6 +46,7 @@ from api.app.schemas import (
     ChapterExport,
     ClipPatch,
     ClipView,
+    CoherenceReport,
     GlossaryCreate,
     OutlineReview,
     OutputCreate,
@@ -70,12 +71,14 @@ from worker.pipeline.clip_edits import (
     snap_manual_range,
     validate_overrides,
 )
+from worker.pipeline.coherence import read_coherence_report
+from worker.pipeline.condense_policy import reviewable, validate_speed
 from worker.pipeline.llm import LLMClient, LLMError
 from worker.pipeline.media import MediaError, demo_transcript, probe_file, probe_url
 from worker.pipeline.render import clip_fingerprint
 from worker.pipeline.signals import Signals
 from worker.pipeline.solver import InfeasibleDuration, solve
-from worker.pipeline.storage import atomic_json, file_lock, output_dir, project_dir
+from worker.pipeline.storage import atomic_json, file_lock, json_object, output_dir, project_dir
 from worker.pipeline.vision import read_vision_report
 
 
@@ -577,7 +580,7 @@ def output_detail(output_id: str, session: DB):
         if transcript_path.exists()
         else None
     )
-    return OutputDetail(
+    detail = OutputDetail(
         output=output,
         project=project,
         clips=[
@@ -604,6 +607,13 @@ def output_detail(output_id: str, session: DB):
         if output.mode == "condense"
         else None,
     )
+    if output.mode == "condense":
+        detail.coherence_report = read_coherence_report(
+            output_dir(output_id), output=output, beats=detail.beats, chapters=detail.chapters
+        )
+        if output.status == "done":
+            detail.condense_qc = json_object(output_dir(output_id) / "condensed.qc.json") or None
+    return detail
 
 
 @app.get("/api/outputs/{output_id}/events")
@@ -656,8 +666,13 @@ def retry(output_id: str, session: DB):
     output = require(session, Output, output_id)
     if output.status != "failed":
         raise HTTPException(409, "Hanya output gagal yang dapat dicoba ulang")
-    # Existing solve/render stage indicates an accepted outline, which must not ask for review again.
-    render_only = output.mode == "condense" and output.stage in {"solve", "render"}
+    # These stages follow an accepted outline, including a failed coherence request.
+    render_only = output.mode == "condense" and output.stage in {
+        "solve",
+        "coherence",
+        "render",
+        "qc",
+    }
     try:
         job_id = enqueue_output(output_id, expected_statuses={"failed"}, render_only=render_only)
     except ValueError as exc:
@@ -768,7 +783,11 @@ def outline_detail(output_id: str, session: DB):
 
 
 def solve_output(
-    output: Output, session: Session, target: float, choices: dict[str, bool] | None = None
+    output: Output,
+    session: Session,
+    target: float,
+    choices: dict[str, bool] | None = None,
+    timing: dict | None = None,
 ):
     chapters = list(session.exec(select(Chapter).where(Chapter.output_id == output.id)).all())
     beats = list(
@@ -781,7 +800,13 @@ def solve_output(
             raise HTTPException(422, "Kirim seluruh ID bab tepat satu kali")
         for chapter in chapters:
             chapter.required = choices[chapter.id]
-    plan = solve(beats, chapters, target, output.settings.get("max_speech_speed", 1.15))
+    try:
+        settings = OutputSettings.model_validate({**output.settings, **(timing or {})})
+        plan = solve(beats, chapters, target, settings.max_speech_speed, settings=settings)
+    except InfeasibleDuration:
+        raise
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
     by_id = {b.id: b for b in beats}
     for item in plan["beats"]:
         beat = by_id[item["id"]]
@@ -794,7 +819,7 @@ def solve_output(
             if b.chapter_id == chapter.id and b.decision != "drop"
         )
         session.add(chapter)
-    output.settings = {**output.settings, "target_seconds": target}
+    output.settings = {**output.settings, **(timing or {}), "target_seconds": target}
     output.actual_duration_s, output.stage = plan["actual_duration_s"], "solve"
     session.add(output)
     return plan
@@ -809,7 +834,15 @@ def solve_preview(output_id: str, body: SolveRequest, session: DB):
     choices = {c.id: c.required for c in body.chapters} if body.chapters is not None else None
     if body.chapters is not None and len(choices) != len(body.chapters):
         raise HTTPException(422, "ID bab duplikat")
-    result = solve_output(output, session, body.target_seconds, choices)
+    result = solve_output(
+        output,
+        session,
+        body.target_seconds,
+        choices,
+        body.model_dump(
+            exclude_unset=True, exclude_none=True, exclude={"target_seconds", "chapters"}
+        ),
+    )
     session.commit()
     return result
 
@@ -823,7 +856,15 @@ def accept_outline(output_id: str, body: OutlineReview, session: DB):
     choices = {c.id: c.required for c in body.chapters}
     if len(choices) != len(body.chapters):
         raise HTTPException(422, "ID bab duplikat")
-    plan = solve_output(output, session, body.target_seconds, choices)
+    plan = solve_output(
+        output,
+        session,
+        body.target_seconds,
+        choices,
+        body.model_dump(
+            exclude_unset=True, exclude_none=True, exclude={"target_seconds", "chapters"}
+        ),
+    )
     session.commit()
     try:
         job_id = enqueue_output(output_id, expected_statuses={"awaiting_review"}, render_only=True)
@@ -842,8 +883,25 @@ def patch_beat(beat_id: str, body: BeatPatch, session: DB):
     chapter = require(session, Chapter, beat.chapter_id)
     if body.decision == "drop" and beat.required and chapter.required:
         raise HTTPException(409, "Beat wajib tidak dapat dibuang")
-    if body.decision == "speed" and body.speed > output.settings.get("max_speech_speed", 1.15):
-        raise HTTPException(422, "Kecepatan melampaui batas pengaturan output")
+    approved = (
+        body.timelapse_approved if body.timelapse_approved is not None else beat.timelapse_approved
+    )
+    if approved and not reviewable(beat):
+        raise HTTPException(
+            422, "Timelapse hanya untuk visual manual/idle/repeat tanpa spesifikasi."
+        )
+    candidate = beat.model_copy(update={"timelapse_approved": approved})
+    try:
+        validate_speed(
+            candidate,
+            body.speed if body.decision == "speed" else 1,
+            OutputSettings.model_validate(output.settings),
+        )
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    beat.timelapse_approved = approved
+    if body.decision == "drop":
+        beat.evidence = {k: v for k, v in beat.evidence.items() if k != "coherence_required"}
     beat.decision, beat.speed, beat.locked = (
         body.decision,
         body.speed if body.decision == "speed" else 1,
@@ -853,6 +911,22 @@ def patch_beat(beat_id: str, body: BeatPatch, session: DB):
     session.commit()
     session.refresh(beat)
     return beat
+
+
+@app.get("/api/outputs/{output_id}/coherence", response_model=CoherenceReport)
+def coherence_report(output_id: str, session: DB):
+    detail = output_detail(output_id, session)
+    if detail.coherence_report is None:
+        raise HTTPException(404, "Pemeriksaan koherensi belum tersedia")
+    return detail.coherence_report
+
+
+@app.get("/api/outputs/{output_id}/qc")
+def condensed_qc(output_id: str, session: DB):
+    detail = output_detail(output_id, session)
+    if detail.output.status != "done" or detail.condense_qc is None:
+        raise HTTPException(404, "QC Ringkas belum tersedia")
+    return detail.condense_qc
 
 
 @app.post("/api/llm/sample")
@@ -925,6 +999,12 @@ def export(output_id: str, session: DB):
         temporary = directory / "export.tmp.zip"
         with zipfile.ZipFile(temporary, "w", compression=zipfile.ZIP_STORED) as archive:
             archive.writestr("metadata.json", detail.model_dump_json(indent=2))
+            if detail.coherence_report:
+                archive.writestr(
+                    "coherence.json", detail.coherence_report.model_dump_json(indent=2)
+                )
+            if detail.condense_qc:
+                archive.writestr("condensed.qc.json", json.dumps(detail.condense_qc, indent=2))
             if detail.output.mode == "clips":
                 archive.writestr(
                     "captions.txt",

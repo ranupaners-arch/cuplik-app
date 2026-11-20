@@ -1,4 +1,5 @@
 "use client";
+import { Button } from "@mantine/core";
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -6,9 +7,10 @@ import { api, post, uploadVideo, type Output, type RuntimeConfig, type Transcrip
 
 import { ClipControls, controlValues } from "@/components/clip-controls";
 import { CondenseVisionControls } from "@/components/condense-vision-controls";
+import { CondenseTimingControls } from "@/components/condense-timing-controls";
 
 export function CreateForm({ projectId }: { projectId?: string }) {
-  const [source, setSource] = useState("demo");
+  const [source, setSource] = useState("url");
   const [language, setLanguage] = useState("auto");
   const [createdProject, setCreatedProject] = useState<string | null>(null);
   const [mode, setMode] = useState("clips");
@@ -64,11 +66,11 @@ export function CreateForm({ projectId }: { projectId?: string }) {
 
   return <>
     {config && <p className="notice">LLM: <strong>{config.provider}</strong> · {config.model}. {config.provider === "mock" ? "Hasil pemilihan dan skor adalah contoh deterministik untuk menguji workflow." : "Permintaan akan dikirim ke provider yang dikonfigurasi di server."}</p>}
-    <form onSubmit={submit}>
+    <form onSubmit={submit} className="create-grid" aria-label="Buat output video">
       {!projectId && <fieldset disabled={busy}><legend>Sumber video</legend>
         <label>Jenis sumber<select value={source} onChange={e => setSource(e.target.value)}><option value="demo">Video demo sintetis (48 detik)</option><option value="upload">Unggah video</option><option value="url">Link YouTube</option></select></label>
         {source === "demo" && <p>Demo berisi pola video, nada sintetis, dan transkrip contoh. Tidak ada rekaman percakapan asli.</p>}
-        {source === "url" && <><label>Link YouTube<input type="url" value={url} required onChange={e => setUrl(e.target.value)} placeholder="https://www.youtube.com/watch?v=…" /></label><button type="button" onClick={async () => { setError(""); setBusy(true); try { const result = await post<{ title: string; duration_s: number }>("/probe", { url }); setProbe(`${result.title} · ${result.duration_s.toFixed(0)} detik`); } catch (e) { setError((e as Error).message); } finally { setBusy(false); } }}>Periksa link</button><p>{probe}</p></>}
+        {source === "url" && <><label>Link YouTube<input type="url" name="source_url" autoCapitalize="none" autoCorrect="off" spellCheck={false} value={url} required onChange={e => setUrl(e.target.value)} placeholder="https://www.youtube.com/watch?v=…" /></label><Button type="button" onClick={async () => { setError(""); setBusy(true); try { const result = await post<{ title: string; duration_s: number }>("/probe", { url }); setProbe(`${result.title} · ${result.duration_s.toFixed(0)} detik`); } catch (e) { setError((e as Error).message); } finally { setBusy(false); } }}>Periksa link</Button><p>{probe}</p></>}
         {source === "upload" && <label>Berkas video<input type="file" accept="video/*" required onChange={e => setFile(e.target.files?.[0] ?? null)} /></label>}
         {source !== "demo" && <><label>Transkrip JSON bertimestamp (opsional)<input type="file" accept="application/json,.json" onChange={e => setTranscript(e.target.files?.[0] ?? null)} /></label><small>Tanpa sidecar, worker memakai Whisper yang perlu dipasang. Format contoh tersedia di <code>examples/transcript.json</code>.</small></>}
         {source !== "demo" && <label>Bahasa transkripsi<select value={language} onChange={e => setLanguage(e.target.value)}><option value="auto">Deteksi otomatis</option><option value="id">Indonesia</option><option value="en">Inggris</option><option value="ar">Arab</option></select></label>}
@@ -88,8 +90,9 @@ export function CreateForm({ projectId }: { projectId?: string }) {
           <label>Fokus Ringkas<textarea maxLength={1000} value={condenseSettings.focus ?? ""} onChange={e => updateCondense({ focus: e.target.value })} /></label>
           <label><input type="checkbox" checked={condenseSettings.captions ?? true} onChange={e => updateCondense({ captions: e.target.checked })} />Caption Ringkas</label>
           <CondenseVisionControls value={condenseSettings.condense_vision ?? { enabled: false, screen_tutorial: false, max_frames: 720 }} onChange={value => updateCondense({ condense_vision: value })} />
+          <CondenseTimingControls value={condenseSettings} onChange={updateCondense} />
         </>}
-        <button type="submit">{busy ? "Mengirim…" : projectId ? "Buat output dari proyek ini" : "Mulai proses"}</button>
+        <Button type="submit" className="studio-primary" fullWidth loading={busy}>{busy ? "Mengirim…" : projectId ? "Buat output dari proyek ini" : "Mulai proses"}</Button>
       </fieldset>
     </form>
     <p role="status">{note}</p>{error && <p role="alert" className="error">{error}</p>}

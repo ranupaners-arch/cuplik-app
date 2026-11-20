@@ -1,4 +1,5 @@
 "use client";
+import { Badge, Button } from "@mantine/core";
 
 import { useState } from "react";
 import { patch, post, type Clip, type Detail } from "@/lib/api";
@@ -29,15 +30,17 @@ export function ClipEditor({ clip, data, disabled, perform }: { clip: Clip; data
   const delivery = (clip.qc.delivery ?? {}) as { notes?: string[] };
   const corrections = Object.entries(texts).filter(([id, text]) => words.has(id) && words.get(id)!.text !== text && text.trim() && !/\s/.test(text));
 
-  return <article data-testid="clip-result">
+  return <article data-testid="clip-result" className="clip-workspace">
     <h2>#{clip.rank} {clip.titles[clip.title_choice]}</h2>
-    <p>Skor editorial: {clip.score.toFixed(1)} · {clip.start_s.toFixed(2)}–{clip.end_s.toFixed(2)} detik</p>
+    <p><Badge component="span" className="score-badge" color={clip.score >= 8 ? "teal" : clip.score >= 5 ? "turmeric" : "gray"} variant="light">Skor editorial: {clip.score.toFixed(1)}</Badge> · {clip.start_s.toFixed(2)}–{clip.end_s.toFixed(2)} detik</p>
     <p>{platformLabels[clip.platform as keyof typeof platformLabels]} · {clip.purpose === "tutorial" ? "Tutorial" : "Jangkauan"}</p>
     <p>{clip.reason}</p>
     {clip.selection.boundary_edited === true && <p>Batas diubah pengguna. Skor dan alasan di atas berasal dari pilihan awal.</p>}
     <details><summary>Rincian skor</summary><pre>{JSON.stringify(clip.rubric, null, 2)}</pre><p>Catatan urutan: {String(clip.selection.rerank_note ?? "")}</p><p>Ketepatan batas: {clip.selection.boundary_precision === "word" ? "timestamp per kata" : "timestamp per kalimat"}</p></details>
-    {clip.file_url && !clip.needs_render && <><video className="clip-player" controls preload="metadata" width={960} poster={clip.thumbnail_url ? `${clip.thumbnail_url}?v=${clip.render_fingerprint}` : undefined} src={`${clip.file_url}?v=${clip.render_fingerprint}`} /><a href={clip.file_url} download>Unduh klip MP4</a>{clip.thumbnail_url && <p><a href={clip.thumbnail_url} download>Unduh thumbnail</a></p>}</>}
-    {clip.needs_render && <><p>Pengaturan berubah; video perlu dirender ulang.</p><button disabled={disabled} onClick={() => perform(() => post(`/clips/${clip.id}/render`))}>Perbarui video klip</button></>}
+    <div className="clip-layout"><div className="clip-preview">
+    {clip.file_url && !clip.needs_render && <><video className="clip-player" data-portrait={Number(clip.qc.width) < Number(clip.qc.height)} controls playsInline preload="metadata" width={960} poster={clip.thumbnail_url ? `${clip.thumbnail_url}?v=${clip.render_fingerprint}` : undefined} src={`${clip.file_url}?v=${clip.render_fingerprint}`} /><a href={clip.file_url} download>Unduh klip MP4</a>{clip.thumbnail_url && <p><a href={clip.thumbnail_url} download>Unduh thumbnail</a></p>}</>}
+    {clip.needs_render && <><p>Pengaturan berubah; video perlu dirender ulang.</p><Button type="submit" disabled={disabled} onClick={() => perform(() => post(`/clips/${clip.id}/render`))}>Perbarui video klip</Button></>}
+    </div><div className="clip-settings">
     {clip.qc.passed === false && <p className="error">Pemeriksaan kualitas membutuhkan tinjauan. Periksa rincian sebelum menggunakan hasil.</p>}
     {Object.keys(checks).length > 0 && <details><summary>Pemeriksaan kualitas video</summary><ul>{Object.entries(checks).map(([key, passed]) => <li key={key}>{qcLabels[key] ?? key}: {passed ? "lolos" : "perlu ditinjau"}</li>)}</ul><p>Durasi hasil: {Number(clip.qc.duration_s).toFixed(2)} detik.</p><p>Loudness: {levels.input_i == null ? "tidak terukur" : `${Number(levels.input_i).toFixed(1)} LUFS`} · Puncak: {levels.input_tp == null ? "tidak terukur" : `${Number(levels.input_tp).toFixed(1)} dBTP`}.</p><p>Waktu caption: {clip.qc.caption_timing === "word" ? "timestamp per kata" : "mengandung perkiraan waktu"}.</p>{edit.warnings?.map((warning, index) => <p key={index}>{warning}</p>)}</details>}
     {clip.qc.width != null && clip.qc.height != null && <p>Resolusi: {String(clip.qc.width)} × {String(clip.qc.height)} · Caption frasa pendek.</p>}
@@ -60,7 +63,7 @@ export function ClipEditor({ clip, data, disabled, perform }: { clip: Clip; data
         const visible = (sentence.word_ids ?? []).map(id => words.get(id)).filter(w => w && w.start < clip.end_s && w.end > clip.start_s);
         const legacy = texts[sentence.id];
         if (!visible.length || (legacy != null && legacy.split(/\s+/).length !== visible.length)) {
-          return <div key={sentence.id}><label>Caption {sentence.id}<textarea value={legacy ?? sentence.text} required maxLength={4000} onChange={e => setTexts({ ...texts, [sentence.id]: e.target.value })} /></label><small>Waktu per kata diperkirakan untuk kalimat ini.</small>{visible.length > 0 && <button type="button" onClick={() => { const next = { ...texts }; delete next[sentence.id]; setTexts(next); }}>Pulihkan kata asli {sentence.id}</button>}</div>;
+          return <div key={sentence.id}><label>Caption {sentence.id}<textarea value={legacy ?? sentence.text} required maxLength={4000} onChange={e => setTexts({ ...texts, [sentence.id]: e.target.value })} /></label><small>Waktu per kata diperkirakan untuk kalimat ini.</small>{visible.length > 0 && <Button type="button" onClick={() => { const next = { ...texts }; delete next[sentence.id]; setTexts(next); }}>Pulihkan kata asli {sentence.id}</Button>}</div>;
         }
         return <fieldset key={sentence.id}><legend>Kata pada {sentence.id}</legend>{visible.map((word, index) => {
           if (!word) return null;
@@ -71,12 +74,13 @@ export function ClipEditor({ clip, data, disabled, perform }: { clip: Clip; data
           }} /></label>;
         })}</fieldset>;
       })}
-      <button>Simpan dan render ulang klip</button>
+      <Button type="submit" className="studio-primary">Simpan dan render ulang klip</Button>
     </fieldset></form></details>
-    {corrections.length > 0 && <details><summary>Tambahkan koreksi kata ke glosarium</summary><p>Berlaku untuk transkripsi proyek baru; transkrip yang sudah selesai tetap tersimpan.</p>{corrections.map(([id, text]) => <p key={id}><button disabled={disabled || added.includes(id)} onClick={() => perform(async () => { await post("/glossary", { wrong: words.get(id)!.text, correct: text }); setAdded(value => [...value, id]); })}>Simpan {words.get(id)!.text} → {text} ke glosarium</button>{added.includes(id) && <span role="status">Tersimpan.</span>}</p>)}</details>}
-    <fieldset disabled={disabled}><legend>Penilaian klip #{clip.rank}</legend><div className="row"><button aria-pressed={clip.rating === "up"} onClick={() => perform(() => patch(`/clips/${clip.id}`, { rating: clip.rating === "up" ? null : "up", rating_note: ratingNote }))}>Suka</button><button aria-pressed={clip.rating === "down"} onClick={() => perform(() => patch(`/clips/${clip.id}`, { rating: clip.rating === "down" ? null : "down", rating_note: ratingNote }))}>Tidak suka</button></div>
-      <label>Catatan penilaian<textarea value={ratingNote} maxLength={1000} onChange={e => setRatingNote(e.target.value)} /></label><button onClick={() => perform(() => patch(`/clips/${clip.id}`, { rating_note: ratingNote }))}>Simpan catatan penilaian</button>
+    {corrections.length > 0 && <details><summary>Tambahkan koreksi kata ke glosarium</summary><p>Berlaku untuk transkripsi proyek baru; transkrip yang sudah selesai tetap tersimpan.</p>{corrections.map(([id, text]) => <p key={id}><Button type="submit" disabled={disabled || added.includes(id)} onClick={() => perform(async () => { await post("/glossary", { wrong: words.get(id)!.text, correct: text }); setAdded(value => [...value, id]); })}>Simpan {words.get(id)!.text} → {text} ke glosarium</Button>{added.includes(id) && <span role="status">Tersimpan.</span>}</p>)}</details>}
+    <fieldset disabled={disabled}><legend>Penilaian klip #{clip.rank}</legend><div className="row"><Button type="submit" aria-pressed={clip.rating === "up"} onClick={() => perform(() => patch(`/clips/${clip.id}`, { rating: clip.rating === "up" ? null : "up", rating_note: ratingNote }))}>Suka</Button><Button type="submit" aria-pressed={clip.rating === "down"} onClick={() => perform(() => patch(`/clips/${clip.id}`, { rating: clip.rating === "down" ? null : "down", rating_note: ratingNote }))}>Tidak suka</Button></div>
+      <label>Catatan penilaian<textarea value={ratingNote} maxLength={1000} onChange={e => setRatingNote(e.target.value)} /></label><Button type="submit" onClick={() => perform(() => patch(`/clips/${clip.id}`, { rating_note: ratingNote }))}>Simpan catatan penilaian</Button>
       <small>Maksimal tiga contoh yang disukai dengan tujuan serupa menjadi masukan pemilihan berikutnya.</small>
     </fieldset>
+    </div></div>
   </article>;
 }
