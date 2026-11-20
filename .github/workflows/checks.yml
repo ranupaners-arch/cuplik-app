@@ -16,7 +16,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   web:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
@@ -28,7 +28,9 @@ jobs:
           node-version-file: .node-version
           cache: npm
           cache-dependency-path: web/package-lock.json
-      - run: sudo apt-get update && sudo apt-get install -y ffmpeg redis-server
+      - name: Ensure media tools
+        timeout-minutes: 9
+        run: bash scripts/ci_system_packages.sh ffmpeg redis-server
       - run: make install
       - run: make lint test build
       - run: make eval eval-fixtures
