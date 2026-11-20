@@ -1,12 +1,14 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { ColorSchemeScript, mantineHtmlProps } from "@mantine/core";
+import { StudioProvider } from "@/components/studio-provider";
+import "@mantine/core/styles.css";
+import "@fontsource-variable/plus-jakarta-sans";
+import "@fontsource-variable/jetbrains-mono";
+import "../../../02-design-system/tokens.css";
 import "./globals.css";
 
-export const metadata: Metadata = { title: "Cuplik — workflow dasar", description: "Pengujian alur proyek, LLM, dan render video Cuplik." };
+export const metadata: Metadata = { title: "Cuplik — studio video", description: "Ubah video panjang menjadi klip dan tutorial ringkas yang tetap jelas." };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="id"><body>
-    <header><strong>Cuplik · workflow dasar</strong><nav aria-label="Navigasi utama"><Link href="/">Buat</Link><Link href="/history">Riwayat</Link><Link href="/preferences">Preferensi</Link><Link href="/llm">Uji LLM</Link><a href="/api/docs" target="_blank" rel="noreferrer">Dokumentasi API</a></nav></header>
-    <main>{children}</main>
-  </body></html>;
+  return <html lang="id" {...mantineHtmlProps}><head><ColorSchemeScript forceColorScheme="dark" /></head><body><StudioProvider>{children}</StudioProvider></body></html>;
 }

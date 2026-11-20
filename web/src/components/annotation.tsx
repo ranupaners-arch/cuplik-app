@@ -1,4 +1,5 @@
 "use client";
+import { Button } from "@mantine/core";
 
 import Link from "next/link";
 import { useEffect, useId, useRef, useState } from "react";
@@ -75,16 +76,16 @@ export function AnnotationPage({ id }: { id: string }) {
         return <fieldset key={key}><legend>{title} #{index + 1}</legend>
           <label htmlFor={`${key}-start`}>Awal {title.toLowerCase()} #{index + 1} (detik)</label>
           <input id={`${key}-start`} name={`${group}.${index}.start_s`} type="number" min={0} max={view.duration_s} step="any" required value={range.start_s} onChange={e => rangeChange(group, index, { start_s: Number(e.target.value) })} />
-          <button type="button" onClick={() => rangeChange(group, index, { start_s: video.current?.currentTime ?? range.start_s })}>Gunakan waktu putar sebagai awal #{index + 1}</button>
+          <Button type="button" onClick={() => rangeChange(group, index, { start_s: video.current?.currentTime ?? range.start_s })}>Gunakan waktu putar sebagai awal #{index + 1}</Button>
           <label htmlFor={`${key}-end`}>Akhir {title.toLowerCase()} #{index + 1} (detik)</label>
           <input id={`${key}-end`} name={`${group}.${index}.end_s`} type="number" min={0.001} max={view.duration_s} step="any" required value={range.end_s} onChange={e => rangeChange(group, index, { end_s: Number(e.target.value) })} />
-          <button type="button" onClick={() => rangeChange(group, index, { end_s: video.current?.currentTime ?? range.end_s })}>Gunakan waktu putar sebagai akhir #{index + 1}</button>
+          <Button type="button" onClick={() => rangeChange(group, index, { end_s: video.current?.currentTime ?? range.end_s })}>Gunakan waktu putar sebagai akhir #{index + 1}</Button>
           <label htmlFor={`${key}-label`}>Label {title.toLowerCase()} #{index + 1}{mode === "condense" && document.status === "reviewed" ? " (wajib)" : ""}</label>
           <input id={`${key}-label`} name={`${group}.${index}.label`} maxLength={300} required={mode === "condense" && document.status === "reviewed"} value={range.label ?? ""} onChange={e => rangeChange(group, index, { label: e.target.value })} />
-          <button type="button" onClick={() => change({ [group]: document[group].filter((_, i) => i !== index) })}>Hapus {title.toLowerCase()} #{index + 1}</button>
+          <Button type="button" onClick={() => change({ [group]: document[group].filter((_, i) => i !== index) })}>Hapus {title.toLowerCase()} #{index + 1}</Button>
         </fieldset>;
       })}
-      <button type="button" disabled={document[group].length >= 100} onClick={() => change({ [group]: [...document[group], { start_s: 0, end_s: Math.min(1, view.duration_s), label: "" }] })}>Tambah {title.toLowerCase()}</button>
+      <Button type="button" disabled={document[group].length >= 100} onClick={() => change({ [group]: [...document[group], { start_s: 0, end_s: Math.min(1, view.duration_s), label: "" }] })}>Tambah {title.toLowerCase()}</Button>
     </fieldset>;
   }
 
@@ -93,7 +94,7 @@ export function AnnotationPage({ id }: { id: string }) {
     <p>Tonton sumber dan tandai momen atau langkah yang wajib dipertahankan. Form ini tidak mengisi label dari prediksi AI.</p>
     {error && <p role="alert" tabIndex={-1} ref={errorSummary} className="error">{error}</p>}
     <p role="status">{message}</p>
-    <button type="button" disabled={busy || dirty} onClick={() => setRevision(value => value + 1)}>Muat ulang anotasi</button>
+    <Button type="button" disabled={busy || dirty} onClick={() => setRevision(value => value + 1)}>Muat ulang anotasi</Button>
     {view && document && <>
       <p>{view.dataset_kind === "synthetic" ? "Sumber demo sintetis; hasilnya tidak masuk ukuran kualitas manusia." : "Anotasi sumber pengguna."} Revisi tersimpan: {view.revision}.</p>
       {view.stale && <p>Isi sumber/transkrip berubah. Tinjau ulang sebelum menyimpan sebagai selesai.</p>}
@@ -101,7 +102,7 @@ export function AnnotationPage({ id }: { id: string }) {
       <video ref={video} controls preload="metadata" width={960} height={540} src={`/api/projects/${id}/source`} onError={() => setSourceMissing(true)}>
         <track kind="captions" src={`/api/projects/${id}/transcript.vtt`} srcLang={view.language} label="Transkrip sumber, perlu ditinjau" />
       </video>
-      {sourceMissing && <p>Video belum dapat dibuka. <button type="button" disabled={preparing || busy} onClick={async () => { setError(""); try { await post(`/projects/${id}/prepare-source`); setPreparing(true); setMessage("Sumber sedang disiapkan; anotasi lokal tetap tersedia."); } catch (e) { setError((e as Error).message); } }}>Siapkan ulang sumber</button></p>}
+      {sourceMissing && <p>Video belum dapat dibuka. <Button type="button" disabled={preparing || busy} onClick={async () => { setError(""); try { await post(`/projects/${id}/prepare-source`); setPreparing(true); setMessage("Sumber sedang disiapkan; anotasi lokal tetap tersedia."); } catch (e) { setError((e as Error).message); } }}>Siapkan ulang sumber</Button></p>}
       <p><a href={`/api/projects/${id}/source`} download="source.mp4">Unduh sumber untuk paket evaluasi</a></p>
       <fieldset disabled={busy || dirty}><legend>Mode anotasi</legend>{(["clips", "condense"] as const).map(value => <div key={value}><input id={`${prefix}-mode-${value}`} type="radio" name="annotation-mode" value={value} checked={mode === value} onChange={() => setMode(value)} /><label htmlFor={`${prefix}-mode-${value}`}>{value === "clips" ? "Label Klip" : "Label Ringkas"}</label></div>)}</fieldset>
       {dirty && <p>Perubahan belum disimpan. Simpan atau batalkan sebelum mengganti mode.</p>}
@@ -114,7 +115,7 @@ export function AnnotationPage({ id }: { id: string }) {
         <label htmlFor={`${prefix}-note`}>Catatan peninjau</label><textarea id={`${prefix}-note`} name="note" maxLength={4000} value={document.note} onChange={e => change({ note: e.target.value })} />
         <div><input id={`${prefix}-independent`} name="independent" type="checkbox" checked={document.independent} disabled={view.predictions_exist} onChange={e => change({ independent: e.target.checked })} /><label htmlFor={`${prefix}-independent`}>Label dibuat tanpa melihat prediksi</label></div>
         <div><input id={`${prefix}-confirmed`} name="review_confirmed" type="checkbox" required={document.status === "reviewed"} checked={document.review_confirmed} onChange={e => change({ review_confirmed: e.target.checked })} /><label htmlFor={`${prefix}-confirmed`}>Saya sudah menonton dan meninjau rentang ini secara manual{document.status === "reviewed" ? " (wajib)" : ""}</label></div>
-        <button type="submit">Simpan anotasi</button><button type="button" disabled={!dirty} onClick={() => { setDocument(view.stale ? { ...view.document, status: "draft", review_confirmed: false } : view.document); setDirty(false); setError(""); }}>Batalkan perubahan</button>
+        <Button type="submit">Simpan anotasi</Button><Button type="button" disabled={!dirty} onClick={() => { setDocument(view.stale ? { ...view.document, status: "draft", review_confirmed: false } : view.document); setDirty(false); setError(""); }}>Batalkan perubahan</Button>
       </fieldset></form>
       {!dirty && !view.stale && view.document.status === "reviewed" && <section><h2>Paket evaluasi</h2><p>Simpan sumber sebagai source.mp4 di folder paket setelah diekstrak. Draft, assisted, demo, dan prediksi mock tidak menjadi ukuran kualitas independen.</p>
         <label htmlFor={`${prefix}-prediction`}>Prediksi pembanding (opsional)</label><select id={`${prefix}-prediction`} value={outputId} onChange={e => setOutputId(e.target.value)}><option value="">Label saja</option>{project?.outputs?.filter(output => output.mode === mode && output.status === "done" && output.provenance?.source_sha256 === view.source_fingerprint && output.provenance?.transcript_sha256 === view.transcript_fingerprint).map(output => <option key={output.id} value={output.id}>{output.mode} · {output.id?.slice(0, 8)}</option>)}</select>

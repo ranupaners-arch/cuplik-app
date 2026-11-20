@@ -1,4 +1,5 @@
 "use client";
+import { Button } from "@mantine/core";
 
 import Link from "next/link";
 import { CondenseTimingControls } from "@/components/condense-timing-controls";
@@ -53,7 +54,7 @@ export function OutputPage({ id }: { id: string }) {
     {project.source_kind === "demo" && <p className="notice">Sumber demo sintetis: pola video dan nada uji dengan transkrip contoh.</p>}
     {project.transcript_status !== "done" && <p role="status">Sumber: {project.stage} · {project.note} <Link href={`/projects/${project.id}`}>Lihat progres sumber</Link></p>}
     {output.provider === "mock" && <p className="notice">Pemilihan momen, bab, dan skor memakai fixture deterministik. MP4 dirender oleh FFmpeg.</p>}
-    <section aria-label="Progres output"><p>Status: <strong data-testid="output-status">{output.status}</strong> · Tahap: {output.stage}</p><progress max={1} value={output.progress ?? 0} aria-label="Progres pipeline" /><p role="status">{output.note}</p>{running && <small>{streaming ? "Progres tersambung melalui SSE." : "Memeriksa status berkala; SSE akan tersambung kembali."} Proses worker tetap berjalan ketika tab ditutup.</small>}{output.error && <p className="error">{output.error}</p>}{output.status === "failed" && <button disabled={busy} onClick={() => perform(() => post(`/outputs/${id}/retry`))}>Coba ulang dari cache</button>}</section>
+    <section aria-label="Progres output"><p>Status: <strong data-testid="output-status">{output.status}</strong> · Tahap: {output.stage}</p><progress max={1} value={output.progress ?? 0} aria-label="Progres pipeline" /><p role="status">{output.note}</p>{running && <small>{streaming ? "Progres tersambung melalui SSE." : "Memeriksa status berkala; SSE akan tersambung kembali."} Proses worker tetap berjalan ketika tab ditutup.</small>}{output.error && <p className="error">{output.error}</p>}{output.status === "failed" && <Button type="submit" disabled={busy} onClick={() => perform(() => post(`/outputs/${id}/retry`))}>Coba ulang dari cache</Button>}</section>
     {error && <p role="alert" className="error">{error}</p>}
     {output.mode === "clips" && data.clips.map(clip => <ClipEditor key={`${clip.id}:${clip.render_fingerprint}`} clip={clip} data={data} disabled={busy || running} perform={perform} />)}
     {output.mode === "clips" && data.clips.length > 0 && <p><a href={`/api/projects/${project.id}/signals`} target="_blank" rel="noreferrer">Data Moment IQ (JSON)</a> · <a href={`/api/outputs/${id}/selection`} target="_blank" rel="noreferrer">Laporan pemilihan dan keragaman (JSON)</a></p>}
@@ -74,8 +75,9 @@ export function OutputPage({ id }: { id: string }) {
     {output.mode === "condense" && output.status === "awaiting_review" && <OutlineEditor data={data} disabled={busy} perform={perform} />}
     {output.mode === "condense" && output.status === "done" && <section>
       <h2>Video ringkasan</h2><p>Durasi render: {output.actual_duration_s?.toFixed(2)} detik</p>
-      <video controls preload="metadata" src={`/api/outputs/${id}/file`} width={720} />
+      <video controls playsInline preload="metadata" src={`/api/outputs/${id}/file`} width={960} />
       <a href={`/api/outputs/${id}/file`} download>Unduh ringkasan MP4</a>
+      {data.condense_qc && <CondenseQuality report={data.condense_qc} id={id} />}
       {data.chapter_export && <details>
         <summary>Daftar bab dan unduhan</summary>
         <p>{data.chapter_export.timing_source === "encoded_parts" ? "Waktu bab mengikuti durasi segmen hasil render." : "Indeks lama memakai durasi rencana; waktu terhadap video belum diverifikasi."}</p>
@@ -95,6 +97,17 @@ export function OutputPage({ id }: { id: string }) {
 }
 
 type Perform = (action: () => Promise<unknown>) => Promise<void>;
+
+function CondenseQuality({ report, id }: { report: Record<string, unknown>; id: string }) {
+  const checks = (report.checks ?? {}) as Record<string, boolean>;
+  const levels = (report.loudness ?? {}) as Record<string, number | null>;
+  const labels: Record<string, string> = { duration: "Durasi rencana", target_duration: "Target durasi", stream_alignment: "Waktu stream audio/video", chapter_timeline: "Timestamp bab", black_frames: "Gambar hitam", silence: "Hening tidak disengaja", loudness: "Volume suara", true_peak: "Puncak audio" };
+  return <details open={report.passed === false}><summary>Pemeriksaan kualitas Ringkas · {report.passed ? "lolos" : "perlu ditinjau"}</summary>
+    <ul>{Object.entries(checks).map(([key, passed]) => <li key={key}>{labels[key] ?? key}: {passed ? "lolos" : "perlu ditinjau"}</li>)}</ul>
+    <p>Loudness: {levels.input_i == null ? "tidak terukur" : `${levels.input_i.toFixed(1)} LUFS`}. Hening timelapse yang sudah disetujui diperhitungkan sesuai rentangnya.</p>
+    <p>{String(report.limitations ?? "")}</p><a href={`/api/outputs/${id}/qc`} target="_blank" rel="noreferrer">Laporan QC Ringkas (JSON)</a>
+  </details>;
+}
 
 function CoherenceReview({ data }: { data: Detail }) {
   const report = data.coherence_report!;
@@ -137,7 +150,7 @@ function OutlineEditor({ data, disabled, perform }: { data: Detail; disabled: bo
     <label>Target durasi (detik)<input type="number" min={3} max={3600} value={target} onChange={e => setTarget(Number(e.target.value))} /></label>
     <CondenseTimingControls value={timing} onChange={value => setTiming(current => ({ ...current, ...value }))} />
     <p>Hitung durasi untuk menerapkan batas kecepatan sebelum memilih percepatan per beat.</p>
-    <div className="row"><button type="button" onClick={() => perform(async () => setPlan(await post(`/outputs/${data.output.id}/solve`, { target_seconds: target, chapters, ...timing })))}>Hitung durasi tanpa render</button><button type="submit">Setujui bab dan render Ringkas</button></div>
+    <div className="row"><Button type="button" onClick={() => perform(async () => setPlan(await post(`/outputs/${data.output.id}/solve`, { target_seconds: target, chapters, ...timing })))}>Hitung durasi tanpa render</Button><Button type="submit">Setujui bab dan render Ringkas</Button></div>
     {plan && <p role="status">Rencana hasil: {plan.actual_duration_s.toFixed(2)} detik. {plan.within_tolerance ? "Dalam toleransi target ±3%." : "Durasi terdekat lebih pendek dari target; semua konten terpilih tetap dipertahankan."}</p>}
   </fieldset></form>
   <details><summary>Keputusan per beat</summary>{data.beats.map(beat => {
@@ -153,7 +166,7 @@ function OutlineEditor({ data, disabled, perform }: { data: Detail; disabled: bo
       {beat.text && <p>{beat.text}</p>}{beat.visual_desc && <p>Visual: {beat.visual_desc}</p>}{specs.length > 0 && <p>Spesifikasi: {specs.join(", ")}</p>}{beat.evidence?.coherence_required === true && <p>Konteks dipulihkan oleh pemeriksaan koherensi. Memilih Buang menghapus penanda ini.</p>}
       {eligible && <div><input id={`timelapse-${beat.id}`} type="checkbox" checked={approvals[beat.id] ?? beat.timelapse_approved ?? false} disabled={disabled} onChange={e => { const approved = e.target.checked; setApprovals(current => ({ ...current, [beat.id]: approved })); void perform(async () => { try { await patch(`/beats/${beat.id}`, { decision: approved ? beat.decision : "keep", speed: approved ? beat.speed : 1, locked: beat.locked, timelapse_approved: approved }); } catch (error) { setApprovals(current => { const next = { ...current }; delete next[beat.id]; return next; }); throw error; } }); }} /><label htmlFor={`timelapse-${beat.id}`}>Saya sudah meninjau {name}: izinkan timelapse dan audio hening</label></div>}
       <label htmlFor={`decision-${beat.id}`}>Keputusan {name}</label><select id={`decision-${beat.id}`} disabled={disabled} value={beat.decision === "speed" ? `speed:${beat.speed}` : beat.decision} onChange={e => { const [decision, rate] = e.target.value.split(":"); void perform(() => patch(`/beats/${beat.id}`, { decision, speed: decision === "speed" ? Number(rate) : 1, locked: true })); }}><option value="keep">Normal</option>{speeds.map(rate => <option key={rate} value={`speed:${rate}`}>Percepat {rate.toLocaleString("id-ID", { maximumFractionDigits: 3 })}×{rate > speech ? " (audio hening)" : ""}</option>)}<option value="drop" disabled={beat.required && choices[beat.chapter_id]}>Buang</option></select>
-      {beat.locked && <button type="button" disabled={disabled} onClick={() => perform(() => patch(`/beats/${beat.id}`, { decision: beat.decision, speed: beat.speed, locked: false }))}>Buka kunci {name}</button>}
+      {beat.locked && <Button type="button" disabled={disabled} onClick={() => perform(() => patch(`/beats/${beat.id}`, { decision: beat.decision, speed: beat.speed, locked: false }))}>Buka kunci {name}</Button>}
     </div>;
   })}</details>
   </section>;
