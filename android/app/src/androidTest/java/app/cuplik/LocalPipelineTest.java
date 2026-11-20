@@ -26,6 +26,10 @@ public class LocalPipelineTest {
     assertTrue(gap.getWidth() > 0 && gap.getHeight() > 0);
     assertEquals(0, android.graphics.Color.alpha(gap.getPixel(0, 0)));
     assertTrue(overlay.getBitmap(2_500_000).getWidth() > gap.getWidth());
+    assertSame(overlay.getText(2_500_000), overlay.getText(2_600_000));
+    var oldText = overlay.getText(2_500_000);
+    overlay.configure(new androidx.media3.common.util.Size(320, 180));
+    assertNotSame(oldText, overlay.getText(2_500_000));
     assertTrue(overlay.getBitmap(5_000_000).getWidth() > 0);
   }
 

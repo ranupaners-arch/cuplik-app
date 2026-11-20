@@ -33,14 +33,14 @@ public final class ProcessingService extends Service {
   private boolean running;
   private final AtomicBoolean cancelled = new AtomicBoolean(false);
   private final java.util.concurrent.ExecutorService executor = Executors.newSingleThreadExecutor();
-  private RenderEngine renderer;
+  private volatile RenderEngine renderer;
   private Store store;
   private PowerManager.WakeLock wake;
   private final android.os.Handler main = new android.os.Handler(android.os.Looper.getMainLooper());
   private String jobId = "";
   private boolean terminal;
   private long whisperHandle;
-  private volatile HttpsURLConnection activeConnection;
+  private NetworkCancellation connections = new NetworkCancellation();
 
   @Override
   public IBinder onBind(Intent intent) {
@@ -82,6 +82,7 @@ public final class ProcessingService extends Service {
     terminal = false;
     running = true;
     cancelled.set(false);
+    connections = new NetworkCancellation();
     JSONObject job = store.state().optJSONObject("active_job");
     String action = job.optString("action");
     JSONObject payload = job.optJSONObject("payload");
@@ -181,11 +182,13 @@ public final class ProcessingService extends Service {
   private synchronized void cancelNative() {
     if (renderer != null) renderer.cancel();
     if (whisperHandle != 0) Whisper.cancel(whisperHandle);
-    if (activeConnection != null) activeConnection.disconnect();
+    connections.cancel();
   }
 
-  private synchronized void closeWhisper(long handle) {
-    whisperHandle = 0;
+  private void closeWhisper(long handle) {
+    synchronized (this) {
+      whisperHandle = 0;
+    }
     Whisper.close(handle);
   }
 
@@ -201,14 +204,14 @@ public final class ProcessingService extends Service {
   public void onTimeout(int startId, int foregroundServiceType) {
     cancelled.set(true);
     cancelNative();
-    store.finish(
-        jobId,
-        "interrupted",
-        "Batas waktu layanan Android tercapai. Checkpoint disimpan untuk dicoba ulang.");
     terminal = true;
     if (wake != null && wake.isHeld()) wake.release();
     stopForeground(STOP_FOREGROUND_REMOVE);
     stopSelf();
+    store.finish(
+        jobId,
+        "interrupted",
+        "Batas waktu layanan Android tercapai. Checkpoint disimpan untuk dicoba ulang.");
   }
 
   private String safeError(Throwable error) {
@@ -284,7 +287,7 @@ public final class ProcessingService extends Service {
         (HttpsURLConnection)
             new URL("https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.bin")
                 .openConnection();
-    activeConnection = connection;
+    connections.observe(connection);
     connection.setConnectTimeout(20000);
     connection.setReadTimeout(60000);
     MessageDigest digest = MessageDigest.getInstance("SHA-256");
@@ -310,7 +313,7 @@ public final class ProcessingService extends Service {
       throw error;
     } finally {
       connection.disconnect();
-      activeConnection = null;
+      connections.observe(null);
     }
     StringBuilder hash = new StringBuilder();
     for (byte b : digest.digest())
@@ -469,9 +472,7 @@ public final class ProcessingService extends Service {
             response = null;
           }
         if (response == null)
-          response =
-              new CloudLlm(secrets, connection -> activeConnection = connection)
-                  .plan(window, mode, count, maximum);
+          response = new CloudLlm(secrets, connections::observe).plan(window, mode, count, maximum);
         JSONArray checked =
             Planner.validate(response, window, mode, windowEnd, maximum, windowStart);
         Files.write(cached.toPath(), response.toString().getBytes(StandardCharsets.UTF_8));
@@ -544,8 +545,7 @@ public final class ProcessingService extends Service {
 
   private void connection() throws Exception {
     progress("connection", 0, "Memeriksa API dan daftar model akun…");
-    JSONArray models =
-        new CloudLlm(new Secrets(this), connection -> activeConnection = connection).models();
+    JSONArray models = new CloudLlm(new Secrets(this), connections::observe).models();
     update(
         s -> {
           s.put("models", models);
