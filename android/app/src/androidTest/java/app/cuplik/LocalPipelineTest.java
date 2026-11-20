@@ -117,6 +117,7 @@ public class LocalPipelineTest {
     var output = store.state().getJSONArray("outputs").getJSONObject(0);
     assertTrue(store.media(output.getString("file")).length() > 1000);
     assertTrue(output.getBoolean("audio_present"));
+    assertTrue(output.getInt("width") > output.getInt("height"));
     assertTrue(output.getBoolean("duration_matches"));
     assertTrue(output.getJSONObject("qc").getJSONObject("audio").getDouble("rms_dbfs") > -50);
     assertTrue(

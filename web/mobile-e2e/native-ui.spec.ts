@@ -1,6 +1,10 @@
 import { expect, test } from "@playwright/test";
+import { execFileSync } from "node:child_process";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
-for (const width of [360, 768]) {
+for (const width of [360, 768, 1440]) {
   test(`kontrol native, API dan tinjauan tidak terpotong pada ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
     await page.addInitScript(() => {
@@ -85,6 +89,12 @@ test("perpindahan proyek menyimpan rencana dan melindungi koreksi transkrip", as
   });
   await page.goto("/assets/www/mobile.html");
   await page.getByLabel("Awal p1 (detik)", { exact: true }).fill("1");
+  await expect(page.getByLabel("Proyek", { exact: true })).not.toBeVisible();
+  const preview = await page.locator("video").first().boundingBox();
+  expect(preview!.y + preview!.height).toBeLessThan(900);
+  const projects = page.getByText("Kelola proyek tersimpan (2)", { exact: true });
+  await projects.focus();
+  await page.keyboard.press("Space");
   await page.getByLabel("Proyek", { exact: true }).selectOption("second");
   expect(await page.evaluate(() => (window as unknown as { projectCalls: unknown[] }).projectCalls.length)).toBe(0);
   await page.getByRole("button", { name: "Simpan rencana dan buka proyek", exact: true }).click();
@@ -100,4 +110,29 @@ test("perpindahan proyek menyimpan rencana dan melindungi koreksi transkrip", as
   expect(calls).toHaveLength(1);
   expect(calls[0].value.plan[0].start_s).toBe(1);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+});
+
+
+test("preview potret mempertahankan rasio pada hape, tab, laptop dan font besar", async ({ page }) => {
+  const temporary = await mkdtemp(join(tmpdir(), "cuplik-native-video-"));
+  try {
+    const file = join(temporary, "portrait.mp4");
+    execFileSync("ffmpeg", ["-v", "error", "-f", "lavfi", "-i", "color=c=black:s=180x320:r=1", "-t", "1", "-c:v", "libx264", "-pix_fmt", "yuv420p", file], { timeout: 15000 });
+    const body = await readFile(file);
+    await page.route("**/portrait-fixture.mp4", route => route.fulfill({ status: 200, contentType: "video/mp4", body }));
+    await page.addInitScript(() => {
+      window.CuplikNative = { getState: () => JSON.stringify({ status: "ready", note: "Fixture rasio video.", busy: false, model_ready: false, progress: 0, plan: [], sentences: [], outputs: [], source: { name: "Fixture potret", duration_s: 1, url: "/assets/www/portrait-fixture.mp4", ...(new URL(location.href).searchParams.has("stale_geometry") ? { width: 320, height: 180 } : {}) }, config: { provider: "gemini", model: "", consent: false } }) } as typeof window.CuplikNative;
+    });
+    for (const [width, font] of [[320, 200], [360, 100], [768, 100], [1440, 100]]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto(`/assets/www/mobile.html${width === 360 ? "?stale_geometry=1" : ""}`);
+      await page.evaluate(size => { document.documentElement.style.fontSize = `${size}%`; }, font);
+      const video = page.locator("video").first();
+      await expect.poll(() => video.evaluate(node => (node as HTMLVideoElement).videoHeight)).toBe(320);
+      const box = (await video.boundingBox())!;
+      expect(box.height / box.width).toBeCloseTo(320 / 180, 1);
+      expect(box.height).toBeLessThanOrEqual(586);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+    }
+  } finally { await rm(temporary, { recursive: true, force: true }); }
 });

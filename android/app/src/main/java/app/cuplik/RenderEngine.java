@@ -267,6 +267,7 @@ final class RenderEngine {
         MediaMetadataRetriever metadata = new MediaMetadataRetriever();
         double actual;
         boolean audio;
+        int width, height;
         try {
           metadata.setDataSource(file.getPath());
           actual =
@@ -275,6 +276,19 @@ final class RenderEngine {
                   / 1000.0;
           audio =
               "yes".equals(metadata.extractMetadata(MediaMetadataRetriever.METADATA_KEY_HAS_AUDIO));
+          width =
+              Integer.parseInt(
+                  metadata.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH));
+          height =
+              Integer.parseInt(
+                  metadata.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT));
+          String rotation =
+              metadata.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION);
+          if ("90".equals(rotation) || "270".equals(rotation)) {
+            int swap = width;
+            width = height;
+            height = swap;
+          }
         } finally {
           metadata.release();
         }
@@ -299,6 +313,10 @@ final class RenderEngine {
                 actual,
                 "expected_duration_s",
                 expected,
+                "width",
+                width,
+                "height",
+                height,
                 "audio_present",
                 audio,
                 "qc",
