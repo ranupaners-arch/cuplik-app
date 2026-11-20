@@ -121,11 +121,11 @@ test("preview potret mempertahankan rasio pada hape, tab, laptop dan font besar"
     const body = await readFile(file);
     await page.route("**/portrait-fixture.mp4", route => route.fulfill({ status: 200, contentType: "video/mp4", body }));
     await page.addInitScript(() => {
-      window.CuplikNative = { getState: () => JSON.stringify({ status: "ready", note: "Fixture rasio video.", busy: false, model_ready: false, progress: 0, plan: [], sentences: [], outputs: [], source: { name: "Fixture potret", duration_s: 1, url: "/assets/www/portrait-fixture.mp4" }, config: { provider: "gemini", model: "", consent: false } }) } as typeof window.CuplikNative;
+      window.CuplikNative = { getState: () => JSON.stringify({ status: "ready", note: "Fixture rasio video.", busy: false, model_ready: false, progress: 0, plan: [], sentences: [], outputs: [], source: { name: "Fixture potret", duration_s: 1, url: "/assets/www/portrait-fixture.mp4", ...(new URL(location.href).searchParams.has("stale_geometry") ? { width: 320, height: 180 } : {}) }, config: { provider: "gemini", model: "", consent: false } }) } as typeof window.CuplikNative;
     });
     for (const [width, font] of [[320, 200], [360, 100], [768, 100], [1440, 100]]) {
       await page.setViewportSize({ width, height: 900 });
-      await page.goto("/assets/www/mobile.html");
+      await page.goto(`/assets/www/mobile.html${width === 360 ? "?stale_geometry=1" : ""}`);
       await page.evaluate(size => { document.documentElement.style.fontSize = `${size}%`; }, font);
       const video = page.locator("video").first();
       await expect.poll(() => video.evaluate(node => (node as HTMLVideoElement).videoHeight)).toBe(320);
