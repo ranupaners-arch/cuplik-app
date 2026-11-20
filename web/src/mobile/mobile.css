@@ -1,0 +1,8 @@
+.android-main { max-inline-size: 76rem; padding-block: 1.5rem; }
+.android-main h1 { font-size: 2.5rem; letter-spacing: -.08em; margin-block: .5rem; }
+.android-dot { color: var(--brand); }
+.android-main .create-grid > section { margin-block: .5rem; }
+.android-main .create-grid > form { min-inline-size: 0; }
+.android-main video { inline-size: 100%; max-block-size: 65dvh; }
+.android-main > section > article { background: var(--bg); }
+.android-main :where(input,select,textarea) { font-size: max(1rem,1em); }
