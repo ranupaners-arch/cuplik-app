@@ -345,6 +345,7 @@ final class RenderEngine {
     private CaptionTimeline timeline;
     private int fontPixels;
     private double maxWidth;
+    private SpannableString cachedText;
 
     Captions(JSONArray sentences, double start, double end, boolean portrait) {
       this.sentences = sentences;
@@ -357,6 +358,7 @@ final class RenderEngine {
     @Override
     public void configure(androidx.media3.common.util.Size videoSize) {
       super.configure(videoSize);
+      cachedText = null;
       int width = Math.max(1, videoSize.getWidth()), height = Math.max(1, videoSize.getHeight());
       boolean compact = portrait || width < height * .9;
       fontPixels = Math.max(8, (int) Math.min(36, Math.min(width * .044, height * .036)));
@@ -370,6 +372,8 @@ final class RenderEngine {
     @Override
     public SpannableString getText(long timeUs) {
       String text = timeline.at(start + timeUs / 1_000_000.0);
+      String content = text.isEmpty() ? "\u00a0" : text;
+      if (cachedText != null && content.contentEquals(cachedText)) return cachedText;
       // Media3 TextOverlay cannot allocate a bitmap for an empty string.
       // A transparent non-breaking space preserves valid geometry during caption gaps.
       boolean visible = !text.isEmpty();
@@ -395,6 +399,7 @@ final class RenderEngine {
           0,
           result.length(),
           Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+      cachedText = result;
       return result;
     }
 
