@@ -13,7 +13,7 @@ type Plan = { id: string; title: string; start_s: number; end_s: number; require
 type Config = { provider: string; model: string; consent: boolean; has_key?: boolean };
 type Output = { file: string; title: string; duration_s: number; duration_matches: boolean; audio_present: boolean; url: string };
 type State = { status: string; note: string; progress: number; busy: boolean; model_ready: boolean; source?: { name: string; duration_s: number; url: string }; plan: Plan[]; sentences: unknown[]; outputs: Output[]; models?: string[]; config: Config; error?: string; mode?: string; analysis_provider?: string };
-type Bridge = { getState(): string; chooseVideo(): void; saveConfig(json: string): void; testConnection(): void; downloadModel(): void; analyze(json: string): void; solve(json: string): void; render(json: string): void; cancel(): void; saveTranscript(json: string): void; saveOutput(file: string): void };
+type Bridge = { getState(): string; chooseVideo(): void; saveConfig(json: string): void; testConnection(): void; downloadModel(): void; analyze(json: string): void; solve(json: string): void; render(json: string): void; cancel(): void; saveTranscript(json: string): void; saveOutput(file: string): void; clearCache(): void };
 declare global { interface Window { CuplikNative?: Bridge } }
 const empty: State = { status: "idle", note: "Pilih video dari perangkat.", progress: 0, busy: false, model_ready: false, plan: [], sentences: [], outputs: [], config: { provider: "gemini", model: "", consent: false } };
 
@@ -50,6 +50,7 @@ function App() {
         <div className="row"><Button type="submit">Simpan pengaturan AI</Button><Button type="button" onClick={() => run(bridge => bridge.testConnection())}>Periksa koneksi dan model</Button><Button type="button" color="red" onClick={() => { run(bridge => bridge.saveConfig(JSON.stringify({ ...config, remove_key: true }))); setKey(""); }}>Hapus kunci tersimpan</Button></div>
       </fieldset></form>
       <fieldset disabled={state.busy}><legend>Transkripsi di perangkat</legend><p>Whisper tiny multibahasa, sekitar 78 MB. Diunduh sekali; audio ditranskrip di perangkat. Kualitas dan waktu proses bergantung pada rekaman serta kemampuan hape.</p><Button type="button" disabled={state.model_ready} onClick={() => run(bridge => bridge.downloadModel())}>{state.model_ready ? "Model transkripsi siap" : "Unduh model transkripsi"}</Button></fieldset>
+      <p>Simpan MP4 ke lokasi pilihanmu sebelum membersihkan penyimpanan aplikasi.</p><Button type="button" disabled={state.busy} onClick={() => run(bridge => bridge.clearCache())}>Bersihkan video dan cache lokal</Button>
     </details>
     <div className="create-grid"><section><h2>Sumber video</h2><Button type="button" className="studio-primary" disabled={state.busy} onClick={() => run(bridge => bridge.chooseVideo())}>Pilih video dari hape</Button>
       {state.source && <><p>{state.source.name} · {state.source.duration_s.toFixed(1)} detik</p><video controls playsInline preload="metadata" src={state.source.url} /></>}

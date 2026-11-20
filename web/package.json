@@ -11,7 +11,8 @@
     "start": "next start --hostname 0.0.0.0",
     "typecheck": "tsc --noEmit",
     "test:e2e": "playwright test",
-    "build:android-ui": "vite build --config vite.mobile.config.mts && node scripts/mobile-notices.mjs"
+    "build:android-ui": "vite build --config vite.mobile.config.mts && node scripts/mobile-notices.mjs",
+    "test:android-ui": "npm run build:android-ui && playwright test --config playwright.mobile.config.ts"
   },
   "dependencies": {
     "@fontsource-variable/jetbrains-mono": "5.3.0",

@@ -53,7 +53,7 @@ final class RenderEngine {
         for(int i=0;i<plan.length();i++)if(plan.getJSONObject(i).optBoolean("keep"))kept.add(plan.getJSONObject(i));
         if(kept.isEmpty())throw new IllegalArgumentException("Pilih setidaknya satu bagian.");
         if(mode.equals("clips"))for(JSONObject row:kept)exports.add(List.of(row));else exports.add(kept);
-        JSONArray outputs=new JSONArray();
+        JSONArray outputs=store.state().optJSONArray("outputs");if(outputs==null)outputs=new JSONArray();
         for(int outputIndex=0;outputIndex<exports.size();outputIndex++) {
             if(cancelled.get())throw new InterruptedException("Dibatalkan.");
             List<EditedMediaItem> items=new ArrayList<>();double expected=0;

@@ -63,6 +63,7 @@ final class Planner {
             if(!Double.isFinite(a)||!Double.isFinite(b)||a<0||b<=a||b>duration||(!mode.equals("condense")&&b-a>180)||!Double.isFinite(speed)||speed<1||speed>1.25) throw new IllegalArgumentException("Batas atau kecepatan bagian tidak valid.");
             boolean required=mode.equals("condense")&&edit.optBoolean("required",old.optBoolean("required"));
             boolean keep=edit.optBoolean("keep",true);
+            if(old.optBoolean("locked")&&edit.optBoolean("locked")&&(keep!=old.optBoolean("keep")||speed!=old.optDouble("speed",1)||a!=old.optDouble("start_s")||b!=old.optDouble("end_s")||required!=old.optBoolean("required")))throw new IllegalArgumentException("Buka kunci sebelum mengubah keputusan.");
             if(required&&!keep) throw new IllegalArgumentException("Bab wajib tidak boleh dibuang.");
             row.put("start_s",a);row.put("end_s",b);row.put("required",required);row.put("keep",keep);row.put("locked",edit.optBoolean("locked"));row.put("speed",speed);
             result.put(row);

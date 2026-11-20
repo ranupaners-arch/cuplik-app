@@ -31,6 +31,7 @@ jobs:
       - run: npx playwright install --with-deps chromium
         working-directory: web
       - run: make e2e
+      - run: npm run test:android-ui --prefix web
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
@@ -54,6 +55,8 @@ jobs:
         with:
           packages: platform-tools
       - uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: false
       - uses: actions/checkout@v4
         with:
           repository: ggml-org/whisper.cpp

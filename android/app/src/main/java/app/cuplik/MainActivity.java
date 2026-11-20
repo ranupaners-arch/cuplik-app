@@ -1,7 +1,8 @@
 package app.cuplik;
 
 import android.Manifest;
-import android.app.Activity;
+import androidx.activity.ComponentActivity;
+import androidx.activity.OnBackPressedCallback;
 import android.content.Intent;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
@@ -32,7 +33,7 @@ import java.io.RandomAccessFile;
 import java.util.HashMap;
 import java.util.Map;
 
-public final class MainActivity extends Activity {
+public final class MainActivity extends ComponentActivity {
     private WebView web;
     private FrameLayout root;
     private Store store;
@@ -71,10 +72,10 @@ public final class MainActivity extends Activity {
         });
         web.addJavascriptInterface(new Bridge(),"CuplikNative");
         web.loadUrl(ORIGIN+"/assets/www/mobile.html");
-        if(Build.VERSION.SDK_INT>=33){getOnBackInvokedDispatcher().registerOnBackInvokedCallback(android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT,()->{if(fullScreen!=null)hideFullScreen();else if(web.canGoBack())web.goBack();else finish();});if(checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED)requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS},12);}
+        getOnBackPressedDispatcher().addCallback(this,new OnBackPressedCallback(true){@Override public void handleOnBackPressed(){if(fullScreen!=null)hideFullScreen();else if(web.canGoBack())web.goBack();else finish();}});
+        if(Build.VERSION.SDK_INT>=33&&checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED)requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS},12);
     }
     private void hideFullScreen(){if(fullScreen!=null){root.removeView(fullScreen);fullScreen=null;web.setVisibility(View.VISIBLE);if(fullScreenCallback!=null)fullScreenCallback.onCustomViewHidden();fullScreenCallback=null;}}
-    @Override public void onBackPressed(){if(fullScreen!=null)hideFullScreen();else if(web.canGoBack())web.goBack();else super.onBackPressed();}
     private void error(Exception error){store.update(s->{s.put("error",error.getMessage()==null?"Operasi gagal.":error.getMessage());});}
     private void command(String action,String payload){
         if(ProcessingService.running&&!action.equals("cancel"))throw new IllegalStateException("Tunggu proses selesai atau batalkan terlebih dahulu.");
@@ -89,6 +90,7 @@ public final class MainActivity extends Activity {
         @JavascriptInterface public void analyze(String json){command("analyze",json);}
         @JavascriptInterface public void render(String json){command("render",json);}
         @JavascriptInterface public void cancel(){if(ProcessingService.running)command("cancel","{}");}
+        @JavascriptInterface public void clearCache(){if(ProcessingService.running)return;runOnUiThread(()->new android.app.AlertDialog.Builder(MainActivity.this).setTitle("Bersihkan video lokal?").setMessage("Video sumber salinan, transkrip dan hasil dalam aplikasi akan dihapus. Simpan MP4 ke perangkat terlebih dahulu. Model dan pengaturan AI tetap disimpan.").setNegativeButton("Batal",null).setPositiveButton("Hapus data lokal",(dialog,which)->{try{File directory=store.media("placeholder").getParentFile();File[] files=directory.listFiles();if(files!=null)for(File file:files)if(!file.delete())throw new IllegalStateException("Sebagian cache belum dapat dihapus; coba ulang.");store.update(s->{s.remove("source");s.remove("settings");s.put("plan",new JSONArray());s.put("sentences",new JSONArray());s.put("outputs",new JSONArray());s.put("next_chunk",0);s.put("status","idle");s.put("note","Data video lokal dibersihkan. Berkas yang disimpan di luar aplikasi tetap tersedia.");s.remove("error");});}catch(Exception failure){error(failure);}}).show());}
         @JavascriptInterface public void solve(String json){try{if(ProcessingService.running)throw new IllegalStateException("Proses masih berjalan.");JSONObject options=new JSONObject(json),state=store.state();JSONArray reviewed=Planner.review(state.getJSONArray("plan"),options.getJSONArray("plan"),state.optString("mode"),state.getJSONObject("source").getDouble("duration_s"));JSONArray plan=Planner.solve(reviewed,options.getDouble("target_seconds"));store.update(s->{s.put("plan",plan);s.put("status","awaiting_review");s.put("note","Rencana dihitung ulang. Tinjau keputusan sebelum ekspor.");s.remove("error");});}catch(Exception failure){error(failure);}}
         @JavascriptInterface public void saveTranscript(String json){try{if(ProcessingService.running)throw new IllegalStateException("Proses masih berjalan.");JSONArray rows=new JSONArray(json);double end=0,duration=store.state().getJSONObject("source").getDouble("duration_s");if(rows.length()>5000)throw new IllegalArgumentException("Transkrip terlalu panjang.");for(int i=0;i<rows.length();i++){JSONObject row=rows.getJSONObject(i);double a=row.getDouble("start_s"),b=row.getDouble("end_s");if(!row.getString("id").equals("s"+(i+1))||!Double.isFinite(a)||!Double.isFinite(b)||a<end||b<=a||b>duration||row.getString("text").length()>4000)throw new IllegalArgumentException("ID, urutan, teks atau waktu transkrip tidak valid.");end=b;}store.update(s->{s.put("sentences",rows);s.put("plan",new JSONArray());s.put("note","Transkrip disimpan. Susun ulang rencana sebelum ekspor.");s.remove("error");});}catch(Exception failure){error(failure);}}
         @JavascriptInterface public void saveOutput(String filename){try{File file=store.media(filename);if(!filename.startsWith("export-")||!filename.endsWith(".mp4")||!file.isFile())throw new IllegalArgumentException("Hasil tidak ditemukan.");saveFile=filename;runOnUiThread(()->startActivityForResult(new Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("video/mp4").putExtra(Intent.EXTRA_TITLE,"cuplik-"+filename),11));}catch(Exception failure){error(failure);}}
