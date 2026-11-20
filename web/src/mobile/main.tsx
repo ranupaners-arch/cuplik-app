@@ -11,11 +11,13 @@ import "./mobile.css";
 
 type Plan = { id: string; title: string; start_s: number; end_s: number; required: boolean; keep: boolean; locked: boolean; speed: number; text: string; score: number };
 type Config = { provider: string; model: string; consent: boolean; has_key?: boolean };
-type Output = { file: string; title: string; duration_s: number; duration_matches: boolean; audio_present: boolean; url: string };
+type Output = { file: string; title: string; duration_s: number; duration_matches: boolean; audio_present: boolean; qc?: { status: string; issues: string[]; note: string; audio: { rms_dbfs: number; peak_dbfs: number; longest_silence_s: number; silence_spans: { start_s: number; end_s: number }[] } | null }; url: string };
 type State = { status: string; note: string; progress: number; busy: boolean; retryable?: boolean; active_job?: { status: string; action: string; attempt: number }; model_ready: boolean; source?: { name: string; duration_s: number; url: string }; plan: Plan[]; sentences: unknown[]; outputs: Output[]; models?: string[]; config: Config; error?: string; mode?: string; analysis_provider?: string };
 type Bridge = { getState(): string; chooseVideo(): void; saveConfig(json: string): void; testConnection(): void; downloadModel(): void; analyze(json: string): void; solve(json: string): void; render(json: string): void; cancel(): void; retryJob(): void; saveTranscript(json: string): void; saveOutput(file: string): void; clearCache(): void };
 declare global { interface Window { CuplikNative?: Bridge } }
 const empty: State = { status: "idle", note: "Pilih video dari perangkat.", progress: 0, busy: false, model_ready: false, plan: [], sentences: [], outputs: [], config: { provider: "gemini", model: "", consent: false } };
+
+const qcLabels: Record<string, string> = { duration_mismatch: "Durasi berbeda dari rencana", missing_audio: "Track audio sumber hilang pada hasil", audio_measurement_unavailable: "Sampel audio belum dapat diperiksa", very_quiet_audio: "Suara sangat pelan atau hening", long_silence: "Ada bagian hening setidaknya 2 detik", near_fullscale_audio: "Level audio mendekati batas; periksa distorsi", audio_duration_mismatch: "Panjang audio berbeda dari video" };
 
 function App() {
   const initial = useRef<State>(window.CuplikNative ? JSON.parse(window.CuplikNative.getState()) : empty).current;
@@ -80,7 +82,7 @@ function App() {
         <p role="status">Estimasi: {duration.toFixed(2)} detik. {state.mode === "clips" ? "Durasi setiap klip diperiksa terpisah." : "Perubahan perhitungan perlu ditinjau sebelum ekspor."}</p><Button type="submit" className="studio-primary">Setujui dan ekspor di hape</Button>
       </fieldset></form>
     </section>}
-    {state.outputs.length > 0 && <section><h2>Hasil di perangkat</h2>{state.outputs.map(output => <article key={output.file}><h3>{output.title}</h3><video controls playsInline preload="metadata" src={output.url} /><p>{output.duration_s.toFixed(2)} detik · Durasi: {output.duration_matches ? "sesuai rencana" : "perlu ditinjau"} · Audio: {output.audio_present ? "tersedia" : "perlu ditinjau"}</p><Button type="button" onClick={() => run(bridge => bridge.saveOutput(output.file))}>Simpan MP4 ke perangkat</Button></article>)}</section>}
+    {state.outputs.length > 0 && <section><h2>Hasil di perangkat</h2>{state.outputs.map(output => <article key={output.file}><h3>{output.title}</h3><video controls playsInline preload="metadata" src={output.url} /><p>{output.duration_s.toFixed(2)} detik · Durasi: {output.duration_matches ? "sesuai rencana" : "perlu ditinjau"} · Track audio: {output.audio_present ? "tersedia" : "perlu ditinjau"}</p>{output.qc && <details><summary>QC hasil: {output.qc.status === "pass" ? "pemeriksaan dasar lulus" : "perlu ditinjau"}</summary>{output.qc.issues.length > 0 && <ul>{output.qc.issues.map(issue => <li key={issue}>{qcLabels[issue] ?? issue}</li>)}</ul>}{output.qc.audio && <><p>RMS {output.qc.audio.rms_dbfs.toFixed(1)} dBFS · Peak {output.qc.audio.peak_dbfs.toFixed(1)} dBFS · Hening terpanjang {output.qc.audio.longest_silence_s.toFixed(1)} detik</p>{output.qc.audio.silence_spans.length > 0 && <p>Bagian hening: {output.qc.audio.silence_spans.map(span => `${span.start_s.toFixed(1)}–${span.end_s.toFixed(1)} dtk`).join(", ")}</p>}</>}<small>{output.qc.note}</small></details>}<Button type="button" onClick={() => run(bridge => bridge.saveOutput(output.file))}>Simpan MP4 ke perangkat</Button></article>)}</section>}
     <footer className="studio-footer"><small>Cuplik Android · Video lokal, analisis teks online.</small></footer>
   </Container></MantineProvider>;
 }

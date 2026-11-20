@@ -53,3 +53,16 @@ test("retry memakai pekerjaan tersimpan dan pembatalan langsung mengunci kontrol
   await expect(page.getByRole("button", { name: "Menunggu pembatalan…", exact: true })).toBeDisabled();
   expect(await page.evaluate(() => ({ retries: (window as unknown as { retries: number }).retries, cancellations: (window as unknown as { cancellations: number }).cancellations }))).toEqual({ retries: 1, cancellations: 1 });
 });
+
+test("QC membedakan track tersedia dengan suara hening pada MP4", async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 900 });
+  await page.addInitScript(() => {
+    window.CuplikNative = { getState: () => JSON.stringify({ status: "done", note: "Ekspor selesai.", busy: false, model_ready: true, progress: 1, plan: [], sentences: [], config: { provider: "gemini", model: "", consent: false }, outputs: [{ file: "export-test.mp4", title: "Fixture QC", url: "", duration_s: 3, duration_matches: true, audio_present: true, qc: { status: "needs_review", issues: ["very_quiet_audio", "long_silence"], note: "Pengukuran PCM/dBFS, bukan LUFS.", audio: { rms_dbfs: -120, peak_dbfs: -120, longest_silence_s: 3, silence_spans: [{ start_s: 0, end_s: 3 }] } } }] }) } as typeof window.CuplikNative;
+  });
+  await page.goto("/assets/www/mobile.html");
+  await page.getByText("QC hasil: perlu ditinjau", { exact: true }).click();
+  await expect(page.getByText("Suara sangat pelan atau hening", { exact: true })).toBeVisible();
+  await expect(page.getByText(/RMS -120.0 dBFS/)).toBeVisible();
+  await expect(page.getByText("Bagian hening: 0.0–3.0 dtk", { exact: true })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+});

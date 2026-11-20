@@ -14,12 +14,25 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 final class AudioDecoder {
   static void decode(File input, File output, AtomicBoolean cancelled) throws Exception {
+    decode(input, output, cancelled, null);
+  }
+
+  static org.json.JSONObject levels(File input, AtomicBoolean cancelled) throws Exception {
+    AudioLevels levels = new AudioLevels();
+    decode(input, null, cancelled, levels);
+    return levels.report();
+  }
+
+  private static void decode(File input, File output, AtomicBoolean cancelled, AudioLevels levels)
+      throws Exception {
     MediaExtractor extractor = new MediaExtractor();
     MediaCodec codec = null;
-    File temporary = new File(output.getPath() + ".tmp");
+    File temporary = output == null ? null : new File(output.getPath() + ".tmp");
     boolean complete = false;
     try (DataOutputStream stream =
-        new DataOutputStream(new BufferedOutputStream(new FileOutputStream(temporary)))) {
+        temporary == null
+            ? null
+            : new DataOutputStream(new BufferedOutputStream(new FileOutputStream(temporary)))) {
       extractor.setDataSource(input.getPath());
       MediaFormat format = null;
       for (int i = 0; i < extractor.getTrackCount(); i++) {
@@ -43,8 +56,11 @@ final class AudioDecoder {
       long frame = 0;
       double next = 0;
       float previous = 0;
+      long lastBuffer = System.nanoTime();
       while (!outputDone) {
         if (cancelled.get()) throw new InterruptedException("Dibatalkan.");
+        if (System.nanoTime() - lastBuffer > 30_000_000_000L)
+          throw new IllegalStateException("Dekoder audio tidak merespons selama 30 detik.");
         if (!inputDone) {
           int index = codec.dequeueInputBuffer(10000);
           if (index >= 0) {
@@ -70,27 +86,39 @@ final class AudioDecoder {
               && encoding != AudioFormat.ENCODING_PCM_FLOAT)
             throw new IllegalArgumentException("Format PCM audio belum didukung.");
         } else if (index >= 0) {
+          lastBuffer = System.nanoTime();
           ByteBuffer buffer = codec.getOutputBuffer(index).order(ByteOrder.LITTLE_ENDIAN);
           buffer.position(info.offset);
           buffer.limit(info.offset + info.size);
+          if (channels < 1 || channels > 64 || rate < 1)
+            throw new IllegalArgumentException("Parameter audio tidak valid.");
           int sampleBytes = encoding == AudioFormat.ENCODING_PCM_FLOAT ? 4 : 2;
           while (buffer.remaining() >= channels * sampleBytes) {
             float sample = 0;
-            for (int ch = 0; ch < channels; ch++)
-              sample +=
+            double square = 0, peak = 0;
+            for (int ch = 0; ch < channels; ch++) {
+              float value =
                   encoding == AudioFormat.ENCODING_PCM_FLOAT
                       ? buffer.getFloat()
                       : buffer.getShort() / 32768f;
-            sample /= channels;
-            while (next <= frame) {
-              float mixed =
-                  frame == 0
-                      ? sample
-                      : previous + (sample - previous) * (float) (next - (frame - 1));
-              stream.writeInt(
-                  Integer.reverseBytes(Float.floatToIntBits(Math.max(-1, Math.min(1, mixed)))));
-              next += rate / 16000.0;
+              if (!Float.isFinite(value))
+                throw new IllegalArgumentException("Sampel audio tidak valid.");
+              sample += value;
+              square += (double) value * value;
+              peak = Math.max(peak, Math.abs(value));
             }
+            sample /= channels;
+            if (levels != null) levels.frame(square / channels, peak, rate);
+            else
+              while (next <= frame) {
+                float mixed =
+                    frame == 0
+                        ? sample
+                        : previous + (sample - previous) * (float) (next - (frame - 1));
+                stream.writeInt(
+                    Integer.reverseBytes(Float.floatToIntBits(Math.max(-1, Math.min(1, mixed)))));
+                next += rate / 16000.0;
+              }
             previous = sample;
             frame++;
           }
@@ -109,8 +137,9 @@ final class AudioDecoder {
           codec.release();
         }
       }
-      if (!complete) temporary.delete();
+      if (!complete && temporary != null) temporary.delete();
     }
-    if (!temporary.renameTo(output)) throw new IllegalStateException("Audio tidak dapat disimpan.");
+    if (temporary != null && !temporary.renameTo(output))
+      throw new IllegalStateException("Audio tidak dapat disimpan.");
   }
 }
