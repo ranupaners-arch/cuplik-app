@@ -1,10 +1,17 @@
 #include <jni.h>
 #include <algorithm>
+#include <atomic>
 #include <cstdio>
 #include <sstream>
 #include <string>
 #include <thread>
 #include "whisper.h"
+
+struct Handle {
+    whisper_context *context;
+    std::atomic<bool> cancelled{false};
+    explicit Handle(whisper_context *value) : context(value) {}
+};
 
 static std::string quote(const char *value) {
     std::string result = "\"";
@@ -22,12 +29,14 @@ extern "C" JNIEXPORT jlong JNICALL Java_app_cuplik_Whisper_open(JNIEnv *env, jcl
     params.use_gpu = false;
     auto *context = whisper_init_from_file_with_params(file, params);
     env->ReleaseStringUTFChars(path, file);
-    return reinterpret_cast<jlong>(context);
+    return context ? reinterpret_cast<jlong>(new Handle(context)) : 0;
 }
 
 extern "C" JNIEXPORT jbyteArray JNICALL Java_app_cuplik_Whisper_transcribe(JNIEnv *env, jclass, jlong handle, jfloatArray samples, jstring language) {
-    auto *context = reinterpret_cast<whisper_context *>(handle);
-    if (!context) return nullptr;
+    auto *owner = reinterpret_cast<Handle *>(handle);
+    if (!owner) return nullptr;
+    auto *context = owner->context;
+    if (owner->cancelled.load()) { env->ThrowNew(env->FindClass("java/lang/InterruptedException"), "Transkripsi dibatalkan."); return nullptr; }
     const char *lang = env->GetStringUTFChars(language, nullptr);
     auto params = whisper_full_default_params(WHISPER_SAMPLING_GREEDY);
     params.n_threads = std::min(4u, std::max(1u, std::thread::hardware_concurrency()));
@@ -39,10 +48,13 @@ extern "C" JNIEXPORT jbyteArray JNICALL Java_app_cuplik_Whisper_transcribe(JNIEn
     params.print_timestamps = false;
     params.suppress_blank = true;
     params.no_speech_thold = 0.6f;
+    params.abort_callback = [](void *data) { return static_cast<Handle *>(data)->cancelled.load(); };
+    params.abort_callback_user_data = owner;
     float *audio = env->GetFloatArrayElements(samples, nullptr);
     int result = whisper_full(context, params, audio, env->GetArrayLength(samples));
     env->ReleaseFloatArrayElements(samples, audio, JNI_ABORT);
     env->ReleaseStringUTFChars(language, lang);
+    if (owner->cancelled.load()) { env->ThrowNew(env->FindClass("java/lang/InterruptedException"), "Transkripsi dibatalkan."); return nullptr; }
     if (result != 0) { env->ThrowNew(env->FindClass("java/lang/IllegalStateException"), "Transkripsi Whisper gagal."); return nullptr; }
     std::ostringstream json;
     json << "[";
@@ -60,5 +72,9 @@ extern "C" JNIEXPORT jbyteArray JNICALL Java_app_cuplik_Whisper_transcribe(JNIEn
 }
 
 extern "C" JNIEXPORT void JNICALL Java_app_cuplik_Whisper_close(JNIEnv *, jclass, jlong handle) {
-    if (handle) whisper_free(reinterpret_cast<whisper_context *>(handle));
+    if (handle) { auto *owner = reinterpret_cast<Handle *>(handle); whisper_free(owner->context); delete owner; }
+}
+
+extern "C" JNIEXPORT void JNICALL Java_app_cuplik_Whisper_cancel(JNIEnv *, jclass, jlong handle) {
+    if (handle) reinterpret_cast<Handle *>(handle)->cancelled.store(true);
 }

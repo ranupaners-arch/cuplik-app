@@ -30,12 +30,17 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 public final class ProcessingService extends Service {
-  static volatile boolean running;
+  private boolean running;
   private final AtomicBoolean cancelled = new AtomicBoolean(false);
   private final java.util.concurrent.ExecutorService executor = Executors.newSingleThreadExecutor();
   private RenderEngine renderer;
   private Store store;
   private PowerManager.WakeLock wake;
+  private final android.os.Handler main = new android.os.Handler(android.os.Looper.getMainLooper());
+  private String jobId = "";
+  private boolean terminal;
+  private long whisperHandle;
+  private volatile HttpsURLConnection activeConnection;
 
   @Override
   public IBinder onBind(Intent intent) {
@@ -49,83 +54,161 @@ public final class ProcessingService extends Service {
   }
 
   @Override
-  public int onStartCommand(Intent intent, int flags, int id) {
-    String action = intent == null ? "" : intent.getAction();
-    if ("cancel".equals(action)) {
-      cancelled.set(true);
-      if (renderer != null) renderer.cancel();
+  public int onStartCommand(Intent intent, int flags, int startId) {
+    String requested = intent == null ? "" : intent.getStringExtra("job_id");
+    if ("cancel".equals(intent == null ? "" : intent.getAction())) {
+      if (store.owns(requested)) store.requestCancel(requested);
+      if (jobId.equals(requested)) {
+        cancelled.set(true);
+        cancelNative();
+      } else if (!running) {
+        if (store.cancelled(requested))
+          store.finish(requested, "cancelled", "Proses dibatalkan sebelum mulai.");
+        stopSelfResult(startId);
+      }
       return START_NOT_STICKY;
     }
-    if (running) return START_NOT_STICKY;
+    if (running) {
+      if (!jobId.equals(requested))
+        store.finish(
+            requested, "failed", "Layanan sebelumnya sedang berhenti. Coba ulang sebentar lagi.");
+      return START_NOT_STICKY;
+    }
+    if (requested == null || !store.claim(requested)) {
+      stopSelfResult(startId);
+      return START_NOT_STICKY;
+    }
+    jobId = requested;
+    terminal = false;
     running = true;
     cancelled.set(false);
-    NotificationManager manager = getSystemService(NotificationManager.class);
-    manager.createNotificationChannel(
-        new NotificationChannel(
-            "processing", "Pemrosesan video", NotificationManager.IMPORTANCE_LOW));
-    Notification notification =
-        new Notification.Builder(this, "processing")
-            .setSmallIcon(app.cuplik.R.drawable.ic_cuplik)
-            .setContentTitle("Cuplik memproses di perangkat")
-            .setContentText("Buka Cuplik untuk melihat progres atau membatalkan.")
-            .setOngoing(true)
-            .build();
-    startForeground(
-        42,
-        notification,
-        Build.VERSION.SDK_INT >= 35
-            ? ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROCESSING
-            : ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC);
-    wake =
-        ((PowerManager) getSystemService(POWER_SERVICE))
-            .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Cuplik:media");
-    wake.acquire(3 * 60 * 60 * 1000L);
-    String payload = intent == null ? "{}" : intent.getStringExtra("payload");
-    executor.execute(
-        () -> {
-          try {
-            JSONObject options = new JSONObject(payload == null ? "{}" : payload);
-            switch (action == null ? "" : action) {
-              case "model":
-                downloadModel();
-                break;
-              case "import":
-                importVideo(options);
-                break;
-              case "analyze":
-                analyze(options);
-                break;
-              case "render":
-                render(options);
-                break;
-              case "connection":
-                connection();
-                break;
-              default:
-                throw new IllegalArgumentException("Operasi tidak dikenal.");
+    JSONObject job = store.state().optJSONObject("active_job");
+    String action = job.optString("action");
+    JSONObject payload = job.optJSONObject("payload");
+    try {
+      NotificationManager manager = getSystemService(NotificationManager.class);
+      manager.createNotificationChannel(
+          new NotificationChannel(
+              "processing", "Pemrosesan video", NotificationManager.IMPORTANCE_LOW));
+      android.app.PendingIntent open =
+          android.app.PendingIntent.getActivity(
+              this,
+              0,
+              new Intent(this, MainActivity.class),
+              android.app.PendingIntent.FLAG_UPDATE_CURRENT
+                  | android.app.PendingIntent.FLAG_IMMUTABLE);
+      android.app.PendingIntent cancel =
+          android.app.PendingIntent.getService(
+              this,
+              1,
+              new Intent(this, ProcessingService.class)
+                  .setAction("cancel")
+                  .putExtra("job_id", jobId),
+              android.app.PendingIntent.FLAG_UPDATE_CURRENT
+                  | android.app.PendingIntent.FLAG_IMMUTABLE);
+      Notification notification =
+          new Notification.Builder(this, "processing")
+              .setSmallIcon(app.cuplik.R.drawable.ic_cuplik)
+              .setContentTitle("Cuplik memproses di perangkat")
+              .setContentText("Buka Cuplik untuk melihat progres.")
+              .setContentIntent(open)
+              .addAction(new Notification.Action.Builder(null, "Batalkan", cancel).build())
+              .setOngoing(true)
+              .build();
+      boolean media = !action.equals("model") && !action.equals("connection");
+      startForeground(
+          42,
+          notification,
+          Build.VERSION.SDK_INT >= 35 && media
+              ? ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROCESSING
+              : ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC);
+      wake =
+          ((PowerManager) getSystemService(POWER_SERVICE))
+              .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Cuplik:media");
+      wake.acquire(3 * 60 * 60 * 1000L);
+      executor.execute(
+          () -> {
+            String result = "done", message = null;
+            try {
+              check();
+              switch (action) {
+                case "model":
+                  downloadModel();
+                  break;
+                case "import":
+                  importVideo(payload);
+                  break;
+                case "analyze":
+                  analyze(payload);
+                  break;
+                case "render":
+                  render(payload);
+                  break;
+                case "connection":
+                  connection();
+                  break;
+                default:
+                  throw new IllegalArgumentException("Operasi tidak dikenal.");
+              }
+            } catch (Throwable error) {
+              result = cancelled.get() || store.cancelled(requested) ? "cancelled" : "failed";
+              message =
+                  result.equals("cancelled")
+                      ? "Proses dibatalkan. Checkpoint tetap tersimpan."
+                      : safeError(error);
+            } finally {
+              String completion = result, failure = message;
+              main.post(() -> finishExecution(startId, requested, completion, failure));
             }
-          } catch (Throwable error) {
-            store.update(
-                s -> {
-                  s.put("status", cancelled.get() ? "cancelled" : "failed");
-                  s.put(
-                      "error",
-                      cancelled.get()
-                          ? "Proses dibatalkan. Cache transkripsi tetap tersedia."
-                          : safeError(error));
-                  s.put(
-                      "note",
-                      "Periksa pesan dan coba ulang. Sumber dan hasil yang selesai tetap"
-                          + " tersimpan.");
-                });
-          } finally {
-            running = false;
-            if (wake != null && wake.isHeld()) wake.release();
-            stopForeground(STOP_FOREGROUND_REMOVE);
-            stopSelf();
-          }
-        });
+          });
+    } catch (Exception error) {
+      finishExecution(startId, requested, "failed", safeError(error));
+    }
     return START_NOT_STICKY;
+  }
+
+  private void finishExecution(int startId, String id, String result, String message) {
+    if (!jobId.equals(id)) return;
+    if (!terminal) store.finish(id, result, message);
+    terminal = true;
+    running = false;
+    renderer = null;
+    if (wake != null && wake.isHeld()) wake.release();
+    stopForeground(STOP_FOREGROUND_REMOVE);
+    stopSelf();
+  }
+
+  private synchronized void cancelNative() {
+    if (renderer != null) renderer.cancel();
+    if (whisperHandle != 0) Whisper.cancel(whisperHandle);
+    if (activeConnection != null) activeConnection.disconnect();
+  }
+
+  private synchronized void closeWhisper(long handle) {
+    whisperHandle = 0;
+    Whisper.close(handle);
+  }
+
+  private void progress(String phase, double fraction, String note) {
+    store.jobProgress(jobId, phase, fraction, note);
+  }
+
+  private void update(Store.Editor editor) {
+    store.updateJob(jobId, editor);
+  }
+
+  @Override
+  public void onTimeout(int startId, int foregroundServiceType) {
+    cancelled.set(true);
+    cancelNative();
+    store.finish(
+        jobId,
+        "interrupted",
+        "Batas waktu layanan Android tercapai. Checkpoint disimpan untuk dicoba ulang.");
+    terminal = true;
+    if (wake != null && wake.isHeld()) wake.release();
+    stopForeground(STOP_FOREGROUND_REMOVE);
+    stopSelf();
   }
 
   private String safeError(Throwable error) {
@@ -135,11 +218,12 @@ public final class ProcessingService extends Service {
   }
 
   private void check() throws InterruptedException {
-    if (cancelled.get()) throw new InterruptedException("Dibatalkan.");
+    if (cancelled.get() || !store.owns(jobId) || store.cancelled(jobId))
+      throw new InterruptedException("Dibatalkan.");
   }
 
   private void importVideo(JSONObject options) throws Exception {
-    store.progress("importing", 0, "Menyalin video ke penyimpanan aplikasi…");
+    progress("importing", 0, "Menyalin video ke penyimpanan aplikasi…");
     File file = store.media("source-" + UUID.randomUUID() + ".mp4");
     long total = 0;
     try (var input =
@@ -178,7 +262,7 @@ public final class ProcessingService extends Service {
               duration,
               "url",
               "https://appassets.androidplatform.net/media/" + file.getName());
-      store.update(
+      update(
           s -> {
             s.put("source", source);
             s.put("sentences", new JSONArray());
@@ -200,7 +284,7 @@ public final class ProcessingService extends Service {
   private void downloadModel() throws Exception {
     final String expected = "be07e048e1e599ad46341c8d2a135645097a538221678b7acdd1b1919c6e1b21";
     if (store.model().exists()) {
-      store.progress("ready", 1, "Model transkripsi sudah tersedia.");
+      progress("ready", 1, "Model transkripsi sudah tersedia.");
       return;
     }
     if (getFilesDir().getUsableSpace() < 160_000_000)
@@ -210,11 +294,12 @@ public final class ProcessingService extends Service {
         (HttpsURLConnection)
             new URL("https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.bin")
                 .openConnection();
+    activeConnection = connection;
     connection.setConnectTimeout(20000);
     connection.setReadTimeout(60000);
     MessageDigest digest = MessageDigest.getInstance("SHA-256");
     long bytes = 0, last = 0;
-    store.progress("model", 0, "Mengunduh model Whisper tiny multibahasa, sekitar 78 MB…");
+    progress("model", 0, "Mengunduh model Whisper tiny multibahasa, sekitar 78 MB…");
     try (var in = connection.getInputStream();
         var out = new FileOutputStream(temporary)) {
       byte[] buffer = new byte[65536];
@@ -227,8 +312,7 @@ public final class ProcessingService extends Service {
         out.write(buffer, 0, count);
         if (bytes - last > 1_000_000) {
           last = bytes;
-          store.progress(
-              "model", bytes / 77691713.0, "Mengunduh model: " + bytes / 1_000_000 + "/78 MB");
+          progress("model", bytes / 77691713.0, "Mengunduh model: " + bytes / 1_000_000 + "/78 MB");
         }
       }
     } catch (Exception error) {
@@ -236,6 +320,7 @@ public final class ProcessingService extends Service {
       throw error;
     } finally {
       connection.disconnect();
+      activeConnection = null;
     }
     StringBuilder hash = new StringBuilder();
     for (byte b : digest.digest())
@@ -244,9 +329,10 @@ public final class ProcessingService extends Service {
       temporary.delete();
       throw new IllegalStateException("Checksum model tidak cocok. Unduh ulang.");
     }
+    check();
     if (!temporary.renameTo(store.model()))
       throw new IllegalStateException("Model tidak dapat disimpan.");
-    store.progress("ready", 1, "Model siap. Transkripsi berikutnya diproses di perangkat.");
+    progress("ready", 1, "Model siap. Transkripsi berikutnya diproses di perangkat.");
   }
 
   private void transcribe(JSONObject source, String language) throws Exception {
@@ -260,7 +346,7 @@ public final class ProcessingService extends Service {
         throw new IllegalStateException(
             "Ruang kosong tidak cukup untuk audio transkripsi. Bersihkan cache setelah menyimpan"
                 + " hasil.");
-      store.progress("transcribing", 0, "Mendekode audio di perangkat…");
+      progress("transcribing", 0, "Mendekode audio di perangkat…");
       AudioDecoder.decode(store.media(source.getString("file")), audio, cancelled);
     }
     JSONObject current = store.state();
@@ -268,7 +354,7 @@ public final class ProcessingService extends Service {
     if (sentences == null) sentences = new JSONArray();
     if (!language.equals(current.optString("transcript_language", language))) {
       sentences = new JSONArray();
-      store.update(
+      update(
           s -> {
             s.put("next_chunk", 0);
             s.put("sentences", new JSONArray());
@@ -277,6 +363,9 @@ public final class ProcessingService extends Service {
     int nextChunk = store.state().optInt("next_chunk", 0), chunkSamples = 30 * 16000;
     long samples = audio.length() / 4, chunks = (samples + chunkSamples - 1) / chunkSamples;
     long handle = Whisper.open(store.model().getPath());
+    synchronized (this) {
+      whisperHandle = handle;
+    }
     if (handle == 0)
       throw new IllegalStateException("Model tidak dapat dimuat; pastikan memori perangkat cukup.");
     try (RandomAccessFile file = new RandomAccessFile(audio, "r")) {
@@ -288,7 +377,7 @@ public final class ProcessingService extends Service {
         file.readFully(raw);
         float[] pcm = new float[count];
         ByteBuffer.wrap(raw).order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer().get(pcm);
-        store.progress(
+        progress(
             "transcribing",
             index / (double) chunks,
             "Mentranskrip bagian " + (index + 1) + "/" + chunks + " di perangkat…");
@@ -307,7 +396,7 @@ public final class ProcessingService extends Service {
         }
         JSONArray snapshot = new JSONArray(sentences.toString());
         int completed = index + 1;
-        store.update(
+        update(
             s -> {
               s.put("sentences", snapshot);
               s.put("next_chunk", completed);
@@ -315,7 +404,7 @@ public final class ProcessingService extends Service {
             });
       }
     } finally {
-      Whisper.close(handle);
+      closeWhisper(handle);
     }
     if (sentences.length() == 0)
       throw new IllegalStateException(
@@ -357,7 +446,7 @@ public final class ProcessingService extends Service {
             to < sentences.length()
                 ? sentences.getJSONObject(to).getDouble("start_s")
                 : source.getDouble("duration_s");
-        store.progress(
+        progress(
             "planning",
             from / (double) sentences.length(),
             "Menganalisis teks dengan API; media tetap di perangkat…");
@@ -389,7 +478,10 @@ public final class ProcessingService extends Service {
             cached.delete();
             response = null;
           }
-        if (response == null) response = new CloudLlm(secrets).plan(window, mode, count, maximum);
+        if (response == null)
+          response =
+              new CloudLlm(secrets, connection -> activeConnection = connection)
+                  .plan(window, mode, count, maximum);
         JSONArray checked =
             Planner.validate(response, window, mode, windowEnd, maximum, windowStart);
         Files.write(cached.toPath(), response.toString().getBytes(StandardCharsets.UTF_8));
@@ -408,7 +500,7 @@ public final class ProcessingService extends Service {
       }
     } else plan = Planner.manual(sentences, mode, source.getDouble("duration_s"));
     JSONArray reviewed = plan;
-    store.update(
+    update(
         s -> {
           s.put("mode", mode);
           s.put("settings", options);
@@ -436,13 +528,13 @@ public final class ProcessingService extends Service {
             mode,
             source.getDouble("duration_s"));
     JSONObject settings = state.getJSONObject("settings");
-    store.update(
+    update(
         s -> {
           s.put("plan", reviewed);
           s.put("status", "rendering");
           s.remove("error");
         });
-    renderer = new RenderEngine(this, store);
+    renderer = new RenderEngine(this, store, jobId);
     renderer.render(
         store.media(source.getString("file")),
         reviewed,
@@ -451,14 +543,14 @@ public final class ProcessingService extends Service {
         settings.optString("layout", "source").equals("portrait"),
         settings.optBoolean("captions", true),
         cancelled);
-    store.progress(
-        "done", 1, "Ekspor selesai di perangkat. Putar hasil dan periksa sebelum membagikan.");
+    progress("done", 1, "Ekspor selesai di perangkat. Putar hasil dan periksa sebelum membagikan.");
   }
 
   private void connection() throws Exception {
-    store.progress("connection", 0, "Memeriksa API dan daftar model akun…");
-    JSONArray models = new CloudLlm(new Secrets(this)).models();
-    store.update(
+    progress("connection", 0, "Memeriksa API dan daftar model akun…");
+    JSONArray models =
+        new CloudLlm(new Secrets(this), connection -> activeConnection = connection).models();
+    update(
         s -> {
           s.put("models", models);
           s.put("status", s.optJSONArray("plan").length() > 0 ? "awaiting_review" : "ready");
@@ -477,8 +569,13 @@ public final class ProcessingService extends Service {
   @Override
   public void onDestroy() {
     cancelled.set(true);
-    if (renderer != null) renderer.cancel();
+    cancelNative();
+    if (!terminal)
+      store.finish(
+          jobId, "interrupted", "Layanan terhenti. Checkpoint disimpan untuk dicoba ulang.");
+    running = false;
     if (wake != null && wake.isHeld()) wake.release();
+    executor.shutdownNow();
     super.onDestroy();
   }
 }

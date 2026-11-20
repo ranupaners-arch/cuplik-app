@@ -11,5 +11,7 @@ final class Whisper {
 
   static native void close(long context);
 
+  static native void cancel(long context);
+
   private Whisper() {}
 }

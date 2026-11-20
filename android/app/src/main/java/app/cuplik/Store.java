@@ -5,7 +5,6 @@ import android.util.AtomicFile;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -23,15 +22,15 @@ final class Store {
     return instance;
   }
 
-  private Store(Context context) {
+  Store(Context context) {
     this.context = context;
     try {
       state =
           new JSONObject(
               new String(
-                  Files.readAllBytes(new File(context.getFilesDir(), "state.json").toPath()),
+                  new AtomicFile(new File(context.getFilesDir(), "state.json")).readFully(),
                   StandardCharsets.UTF_8));
-    } catch (Exception ignored) {
+    } catch (Exception unreadable) {
       state =
           Json.obj(
               "status",
@@ -46,7 +45,26 @@ final class Store {
               new JSONArray(),
               "progress",
               0);
+      File damaged = new File(context.getFilesDir(), "state.json");
+      if (damaged.isFile()) {
+        damaged.renameTo(
+            new File(
+                context.getFilesDir(), "state-corrupt-" + System.currentTimeMillis() + ".json"));
+        try {
+          state.put("note", "Catatan proyek tidak dapat dibaca. Media dan model tetap disimpan.");
+        } catch (Exception ignored) {
+        }
+      }
     }
+    try {
+      if (JobJournal.recover(state)) update(s -> {});
+    } catch (Exception error) {
+      throw new IllegalStateException(error);
+    }
+    File[] incomplete =
+        new File(context.getFilesDir(), "media")
+            .listFiles((parent, name) -> name.startsWith("partial-") && name.endsWith(".mp4"));
+    if (incomplete != null) for (File file : incomplete) file.delete();
   }
 
   synchronized JSONObject state() {
@@ -80,6 +98,67 @@ final class Store {
           s.put("progress", progress);
           s.put("note", note);
           s.remove("error");
+        });
+  }
+
+  synchronized boolean busy() {
+    return JobJournal.busy(state);
+  }
+
+  synchronized boolean owns(String id) {
+    return JobJournal.owns(state, id);
+  }
+
+  synchronized boolean cancelled(String id) {
+    return JobJournal.cancelled(state, id);
+  }
+
+  synchronized boolean retryable() {
+    return JobJournal.retryable(state);
+  }
+
+  synchronized JSONObject enqueue(String action, JSONObject options) {
+    JSONObject[] result = new JSONObject[1];
+    update(s -> result[0] = JobJournal.enqueue(s, action, options));
+    return result[0];
+  }
+
+  synchronized JSONObject retry() {
+    JSONObject[] result = new JSONObject[1];
+    update(s -> result[0] = JobJournal.retry(s));
+    return result[0];
+  }
+
+  synchronized boolean claim(String id) {
+    boolean[] claimed = {false};
+    update(s -> claimed[0] = JobJournal.claim(s, id));
+    return claimed[0];
+  }
+
+  synchronized void requestCancel(String id) {
+    update(s -> JobJournal.cancel(s, id));
+  }
+
+  synchronized void finish(String id, String result, String error) {
+    if (owns(id)) update(s -> JobJournal.finish(s, id, result, error));
+  }
+
+  synchronized void updateJob(String id, Editor editor) {
+    if (!owns(id) || cancelled(id))
+      throw new IllegalStateException("Pekerjaan sudah dibatalkan atau tidak aktif.");
+    update(editor);
+  }
+
+  synchronized void jobProgress(String id, String phase, double fraction, String note) {
+    if (owns(id)) update(s -> JobJournal.progress(s, id, phase, fraction, note));
+  }
+
+  synchronized void editInputs(Editor editor) {
+    if (busy()) throw new IllegalStateException("Proses masih berjalan.");
+    update(
+        s -> {
+          editor.apply(s);
+          s.put("input_revision", s.optLong("input_revision") + 1);
         });
   }
 

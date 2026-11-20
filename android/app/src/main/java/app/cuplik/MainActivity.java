@@ -45,14 +45,7 @@ public final class MainActivity extends ComponentActivity {
   public void onCreate(Bundle saved) {
     super.onCreate(saved);
     store = Store.get(this);
-    if (!ProcessingService.running
-        && java.util.Set.of(
-                "importing", "transcribing", "planning", "rendering", "model", "connection")
-            .contains(store.state().optString("status")))
-      store.progress(
-          "interrupted",
-          0,
-          "Proses sebelumnya terhenti. Transkripsi dapat dilanjutkan dari cache.");
+    if (saved != null) saveFile = saved.getString("save_file");
     root = new FrameLayout(this);
     root.setBackgroundColor(Color.rgb(20, 18, 12));
     root.setOnApplyWindowInsetsListener(
@@ -167,22 +160,32 @@ public final class MainActivity extends ComponentActivity {
         });
   }
 
-  private void command(String action, String payload) {
-    if (ProcessingService.running && !action.equals("cancel"))
-      throw new IllegalStateException("Tunggu proses selesai atau batalkan terlebih dahulu.");
+  private void dispatch(JSONObject job) {
     runOnUiThread(
         () -> {
+          String id = job.optString("id");
           try {
-            Intent intent =
+            startForegroundService(
                 new Intent(this, ProcessingService.class)
-                    .setAction(action)
-                    .putExtra("payload", payload);
-            if (action.equals("cancel")) startService(intent);
-            else startForegroundService(intent);
+                    .setAction(job.optString("action"))
+                    .putExtra("job_id", id));
           } catch (Exception failure) {
-            error(failure);
+            store.finish(
+                id,
+                "failed",
+                failure.getMessage() == null
+                    ? "Layanan perangkat tidak dapat dimulai."
+                    : failure.getMessage());
           }
         });
+  }
+
+  private void command(String action, String payload) {
+    try {
+      dispatch(store.enqueue(action, new JSONObject(payload)));
+    } catch (Exception failure) {
+      error(failure);
+    }
   }
 
   public final class Bridge {
@@ -192,7 +195,10 @@ public final class MainActivity extends ComponentActivity {
       try {
         state.put("config", new Secrets(MainActivity.this).publicConfig());
         state.put("model_ready", store.model().isFile());
-        state.put("busy", ProcessingService.running);
+        state.put("busy", store.busy());
+        state.put("retryable", store.retryable());
+        JSONObject job = state.optJSONObject("active_job");
+        if (job != null) job.remove("payload");
       } catch (Exception failure) {
         error(failure);
       }
@@ -201,7 +207,7 @@ public final class MainActivity extends ComponentActivity {
 
     @JavascriptInterface
     public void chooseVideo() {
-      if (ProcessingService.running) return;
+      if (store.busy()) return;
       runOnUiThread(
           () ->
               startActivityForResult(
@@ -217,10 +223,10 @@ public final class MainActivity extends ComponentActivity {
     @JavascriptInterface
     public void saveConfig(String json) {
       try {
-        if (ProcessingService.running)
+        if (store.busy())
           throw new IllegalStateException("Tunggu proses selesai sebelum mengganti API.");
         new Secrets(MainActivity.this).save(new JSONObject(json));
-        store.update(
+        store.editInputs(
             s -> {
               s.put("note", "Pengaturan AI tersimpan di perangkat.");
               s.remove("error");
@@ -252,12 +258,30 @@ public final class MainActivity extends ComponentActivity {
 
     @JavascriptInterface
     public void cancel() {
-      if (ProcessingService.running) command("cancel", "{}");
+      JSONObject job = store.state().optJSONObject("active_job");
+      if (job == null || !store.busy()) return;
+      String id = job.optString("id");
+      store.requestCancel(id);
+      runOnUiThread(
+          () ->
+              startService(
+                  new Intent(MainActivity.this, ProcessingService.class)
+                      .setAction("cancel")
+                      .putExtra("job_id", id)));
+    }
+
+    @JavascriptInterface
+    public void retryJob() {
+      try {
+        dispatch(store.retry());
+      } catch (Exception failure) {
+        error(failure);
+      }
     }
 
     @JavascriptInterface
     public void clearCache() {
-      if (ProcessingService.running) return;
+      if (store.busy()) return;
       runOnUiThread(
           () ->
               new android.app.AlertDialog.Builder(MainActivity.this)
@@ -271,30 +295,32 @@ public final class MainActivity extends ComponentActivity {
                       "Hapus data lokal",
                       (dialog, which) -> {
                         try {
-                          if (ProcessingService.running)
-                            throw new IllegalStateException("Proses masih berjalan.");
-                          File directory = store.media("placeholder").getParentFile();
-                          File[] files = directory.listFiles();
-                          if (files != null)
-                            for (File file : files)
-                              if (!file.delete())
-                                throw new IllegalStateException(
-                                    "Sebagian cache belum dapat dihapus; coba ulang.");
-                          store.update(
-                              s -> {
-                                s.remove("source");
-                                s.remove("settings");
-                                s.put("plan", new JSONArray());
-                                s.put("sentences", new JSONArray());
-                                s.put("outputs", new JSONArray());
-                                s.put("next_chunk", 0);
-                                s.put("status", "idle");
-                                s.put(
-                                    "note",
-                                    "Data video lokal dibersihkan. Berkas yang disimpan di luar"
-                                        + " aplikasi tetap tersedia.");
-                                s.remove("error");
-                              });
+                          synchronized (store) {
+                            if (store.busy())
+                              throw new IllegalStateException("Proses masih berjalan.");
+                            File directory = store.media("placeholder").getParentFile();
+                            File[] files = directory.listFiles();
+                            if (files != null)
+                              for (File file : files)
+                                if (!file.delete())
+                                  throw new IllegalStateException(
+                                      "Sebagian cache belum dapat dihapus; coba ulang.");
+                            store.editInputs(
+                                s -> {
+                                  s.remove("source");
+                                  s.remove("settings");
+                                  s.put("plan", new JSONArray());
+                                  s.put("sentences", new JSONArray());
+                                  s.put("outputs", new JSONArray());
+                                  s.put("next_chunk", 0);
+                                  s.put("status", "idle");
+                                  s.put(
+                                      "note",
+                                      "Data video lokal dibersihkan. Berkas yang disimpan di luar"
+                                          + " aplikasi tetap tersedia.");
+                                  s.remove("error");
+                                });
+                          }
                         } catch (Exception failure) {
                           error(failure);
                         }
@@ -305,7 +331,7 @@ public final class MainActivity extends ComponentActivity {
     @JavascriptInterface
     public void solve(String json) {
       try {
-        if (ProcessingService.running) throw new IllegalStateException("Proses masih berjalan.");
+        if (store.busy()) throw new IllegalStateException("Proses masih berjalan.");
         JSONObject options = new JSONObject(json), state = store.state();
         JSONArray reviewed =
             Planner.review(
@@ -314,7 +340,7 @@ public final class MainActivity extends ComponentActivity {
                 state.optString("mode"),
                 state.getJSONObject("source").getDouble("duration_s"));
         JSONArray plan = Planner.solve(reviewed, options.getDouble("target_seconds"));
-        store.update(
+        store.editInputs(
             s -> {
               s.put("plan", plan);
               s.put("status", "awaiting_review");
@@ -329,7 +355,7 @@ public final class MainActivity extends ComponentActivity {
     @JavascriptInterface
     public void saveTranscript(String json) {
       try {
-        if (ProcessingService.running) throw new IllegalStateException("Proses masih berjalan.");
+        if (store.busy()) throw new IllegalStateException("Proses masih berjalan.");
         JSONArray rows = new JSONArray(json);
         double end = 0, duration = store.state().getJSONObject("source").getDouble("duration_s");
         if (rows.length() > 5000) throw new IllegalArgumentException("Transkrip terlalu panjang.");
@@ -347,7 +373,7 @@ public final class MainActivity extends ComponentActivity {
                 "ID, urutan, teks atau waktu transkrip tidak valid.");
           end = b;
         }
-        store.update(
+        store.editInputs(
             s -> {
               s.put("sentences", rows);
               s.put("plan", new JSONArray());
@@ -378,6 +404,12 @@ public final class MainActivity extends ComponentActivity {
         error(failure);
       }
     }
+  }
+
+  @Override
+  protected void onSaveInstanceState(Bundle state) {
+    super.onSaveInstanceState(state);
+    if (saveFile != null) state.putString("save_file", saveFile);
   }
 
   @Override

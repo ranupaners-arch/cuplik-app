@@ -50,10 +50,26 @@ final class RenderEngine {
   private final Store store;
   private final Handler main = new Handler(Looper.getMainLooper());
   private volatile Transformer transformer;
+  private final String owner;
 
   RenderEngine(Context context, Store store) {
+    this(context, store, null);
+  }
+
+  RenderEngine(Context context, Store store, String owner) {
     this.context = context;
     this.store = store;
+    this.owner = owner;
+  }
+
+  private void check(AtomicBoolean cancelled) throws InterruptedException {
+    if (cancelled.get() || (owner != null && (!store.owns(owner) || store.cancelled(owner))))
+      throw new InterruptedException("Ekspor dibatalkan.");
+  }
+
+  private void progress(double fraction, String note) {
+    if (owner == null) store.progress("rendering", fraction, note);
+    else store.jobProgress(owner, "rendering", fraction, note);
   }
 
   void cancel() {
@@ -82,7 +98,7 @@ final class RenderEngine {
     JSONArray outputs = store.state().optJSONArray("outputs");
     if (outputs == null) outputs = new JSONArray();
     for (int outputIndex = 0; outputIndex < exports.size(); outputIndex++) {
-      if (cancelled.get()) throw new InterruptedException("Dibatalkan.");
+      check(cancelled);
       String inputKey =
           Json.hash(
               Json.obj(
@@ -150,11 +166,14 @@ final class RenderEngine {
                   true));
         items.add(item.build());
       }
-      String name = "export-" + java.util.UUID.randomUUID() + ".mp4";
-      File file = store.media(name);
+      String token = java.util.UUID.randomUUID().toString();
+      String name = "export-" + token + ".mp4";
+      File file = store.media("partial-" + token + ".mp4");
       CountDownLatch finished = new CountDownLatch(1);
       Exception[] failure = new Exception[1];
       AtomicBoolean complete = new AtomicBoolean(false);
+      java.util.concurrent.atomic.AtomicInteger measuredProgress =
+          new java.util.concurrent.atomic.AtomicInteger(-1);
       Composition composition =
           new Composition.Builder(EditedMediaItemSequence.withAudioAndVideoFrom(items)).build();
       main.post(
@@ -189,7 +208,7 @@ final class RenderEngine {
           });
       long started = System.nanoTime();
       while (!finished.await(500, TimeUnit.MILLISECONDS)) {
-        if (cancelled.get()) {
+        if (cancelled.get() || (owner != null && (!store.owns(owner) || store.cancelled(owner)))) {
           cancel();
           file.delete();
           throw new InterruptedException("Dibatalkan.");
@@ -206,47 +225,63 @@ final class RenderEngine {
                 ProgressHolder progress = new ProgressHolder();
                 int state = transformer.getProgress(progress);
                 if (state == Transformer.PROGRESS_STATE_AVAILABLE)
-                  store.progress(
-                      "rendering",
-                      (part + progress.progress / 100.0) / exports.size(),
-                      "Merender " + (part + 1) + "/" + exports.size() + " di perangkat…");
+                  measuredProgress.set(progress.progress);
               }
             });
+        if (measuredProgress.get() >= 0)
+          progress(
+              (part + measuredProgress.get() / 100.0) / exports.size(),
+              "Merender " + (part + 1) + "/" + exports.size() + " di perangkat…");
       }
       if (failure[0] != null) {
         file.delete();
         throw failure[0];
       }
-      MediaMetadataRetriever metadata = new MediaMetadataRetriever();
-      metadata.setDataSource(file.getPath());
-      double actual =
-          Double.parseDouble(metadata.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION))
-              / 1000.0;
-      boolean audio =
-          "yes".equals(metadata.extractMetadata(MediaMetadataRetriever.METADATA_KEY_HAS_AUDIO));
-      metadata.release();
-      outputs.put(
-          Json.obj(
-              "file",
-              name,
-              "input_key",
-              inputKey,
-              "title",
-              mode.equals("clips")
-                  ? exports.get(outputIndex).get(0).optString("title")
-                  : "Ringkasan video",
-              "duration_s",
-              actual,
-              "expected_duration_s",
-              expected,
-              "audio_present",
-              audio,
-              "duration_matches",
-              Math.abs(actual - expected) <= Math.max(.15, expected * .03),
-              "url",
-              "https://appassets.androidplatform.net/media/" + name));
-      JSONArray snapshot = new JSONArray(outputs.toString());
-      store.update(s -> s.put("outputs", snapshot));
+      try {
+        check(cancelled);
+        MediaMetadataRetriever metadata = new MediaMetadataRetriever();
+        double actual;
+        boolean audio;
+        try {
+          metadata.setDataSource(file.getPath());
+          actual =
+              Double.parseDouble(
+                      metadata.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION))
+                  / 1000.0;
+          audio =
+              "yes".equals(metadata.extractMetadata(MediaMetadataRetriever.METADATA_KEY_HAS_AUDIO));
+        } finally {
+          metadata.release();
+        }
+        check(cancelled);
+        if (!file.renameTo(store.media(name)))
+          throw new IllegalStateException("Ekspor selesai belum dapat disimpan.");
+        outputs.put(
+            Json.obj(
+                "file",
+                name,
+                "input_key",
+                inputKey,
+                "title",
+                mode.equals("clips")
+                    ? exports.get(outputIndex).get(0).optString("title")
+                    : "Ringkasan video",
+                "duration_s",
+                actual,
+                "expected_duration_s",
+                expected,
+                "audio_present",
+                audio,
+                "duration_matches",
+                Math.abs(actual - expected) <= Math.max(.15, expected * .03),
+                "url",
+                "https://appassets.androidplatform.net/media/" + name));
+        JSONArray snapshot = new JSONArray(outputs.toString());
+        if (owner == null) store.update(s -> s.put("outputs", snapshot));
+        else store.updateJob(owner, s -> s.put("outputs", snapshot));
+      } finally {
+        file.delete();
+      }
     }
   }
 
