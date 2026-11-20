@@ -114,7 +114,7 @@ final class RenderEngine {
           Json.hash(
               Json.obj(
                       "version",
-                      1,
+                      2,
                       "source",
                       source.getName(),
                       "parts",
@@ -342,42 +342,49 @@ final class RenderEngine {
     private final JSONArray sentences;
     private final double start, end;
     private final boolean portrait;
+    private CaptionTimeline timeline;
+    private int fontPixels;
+    private double maxWidth;
 
     Captions(JSONArray sentences, double start, double end, boolean portrait) {
       this.sentences = sentences;
       this.start = start;
       this.end = end;
       this.portrait = portrait;
+      configure(new androidx.media3.common.util.Size(portrait ? 720 : 1280, portrait ? 1280 : 720));
+    }
+
+    @Override
+    public void configure(androidx.media3.common.util.Size videoSize) {
+      super.configure(videoSize);
+      int width = Math.max(1, videoSize.getWidth()), height = Math.max(1, videoSize.getHeight());
+      boolean compact = portrait || width < height * .9;
+      fontPixels = Math.max(8, (int) Math.min(36, Math.min(width * .044, height * .036)));
+      maxWidth = width * .82;
+      android.text.TextPaint paint = new android.text.TextPaint();
+      paint.setTextSize(fontPixels);
+      timeline =
+          new CaptionTimeline(sentences, start, end, compact ? 3 : 5, maxWidth, paint::measureText);
     }
 
     @Override
     public SpannableString getText(long timeUs) {
-      String text = "";
-      double time = start + timeUs / 1_000_000.0;
-      for (int i = 0; i < sentences.length(); i++) {
-        JSONObject row = sentences.optJSONObject(i);
-        double a = row.optDouble("start_s"), b = row.optDouble("end_s");
-        if (time >= a && time < b && time < end) {
-          String[] words = row.optString("text").trim().split("\\s+");
-          int size = portrait ? 3 : 5;
-          int chunks = Math.max(1, (words.length + size - 1) / size);
-          int chunk = Math.min(chunks - 1, (int) ((time - a) / Math.max(.001, b - a) * chunks));
-          StringBuilder selected = new StringBuilder();
-          for (int w = chunk * size; w < Math.min(words.length, (chunk + 1) * size); w++)
-            selected.append(words[w]).append(' ');
-          text = selected.toString().trim();
-          break;
-        }
-      }
+      String text = timeline.at(start + timeUs / 1_000_000.0);
       // Media3 TextOverlay cannot allocate a bitmap for an empty string.
       // A transparent non-breaking space preserves valid geometry during caption gaps.
       boolean visible = !text.isEmpty();
       SpannableString result = new SpannableString(visible ? text : "\u00a0");
+      android.text.TextPaint paint = new android.text.TextPaint();
+      paint.setTextSize(fontPixels);
+      int fittedSize =
+          Math.max(
+              1,
+              (int)
+                  Math.min(
+                      fontPixels,
+                      fontPixels * maxWidth / Math.max(1, paint.measureText(result.toString()))));
       result.setSpan(
-          new AbsoluteSizeSpan(portrait ? 30 : 28),
-          0,
-          result.length(),
-          Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+          new AbsoluteSizeSpan(fittedSize), 0, result.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
       result.setSpan(
           new ForegroundColorSpan(visible ? Color.WHITE : Color.TRANSPARENT),
           0,
