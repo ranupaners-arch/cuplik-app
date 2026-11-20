@@ -30,6 +30,33 @@ public class LocalPipelineTest {
   }
 
   @Test
+  public void captionsFitSmallLandscapePortraitAndSquareFrames() throws Exception {
+    JSONArray sentences =
+        new JSONArray()
+            .put(
+                Json.obj(
+                    "start_s",
+                    0,
+                    "end_s",
+                    15,
+                    "text",
+                    "Siapkan pneumonoultramicroscopicsilicovolcanoconiosis kemudian periksa ukuran"
+                        + " layar dan hasil video."));
+    for (int[] frame : new int[][] {{320, 180}, {180, 320}, {320, 320}, {1280, 720}}) {
+      RenderEngine.Captions overlay = new RenderEngine.Captions(sentences, 0, 15, false);
+      overlay.configure(new androidx.media3.common.util.Size(frame[0], frame[1]));
+      for (long time = 0; time < 15_000_000; time += 100_000) {
+        android.graphics.Bitmap bitmap = overlay.getBitmap(time);
+        assertTrue(
+            "Caption must stay within horizontal safe area",
+            bitmap.getWidth() <= frame[0] * .82 + 2);
+        assertTrue(
+            "Caption must preserve visible source area", bitmap.getHeight() < frame[1] * .12);
+      }
+    }
+  }
+
+  @Test
   public void transcribesAndRendersOnAndroidWithoutBackend() throws Exception {
     Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
     Context tests = InstrumentationRegistry.getInstrumentation().getContext();
