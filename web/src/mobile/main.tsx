@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { Badge, Button, Container, Group, MantineProvider, Progress } from "@mantine/core";
+import { Badge, Button, Container, Group, MantineProvider } from "@mantine/core";
 import { studioTheme } from "../design/theme";
 import "@mantine/core/styles.css";
 import "@fontsource-variable/plus-jakarta-sans";
@@ -12,8 +12,8 @@ import "./mobile.css";
 type Plan = { id: string; title: string; start_s: number; end_s: number; required: boolean; keep: boolean; locked: boolean; speed: number; text: string; score: number };
 type Config = { provider: string; model: string; consent: boolean; has_key?: boolean };
 type Output = { file: string; title: string; duration_s: number; duration_matches: boolean; audio_present: boolean; url: string };
-type State = { status: string; note: string; progress: number; busy: boolean; model_ready: boolean; source?: { name: string; duration_s: number; url: string }; plan: Plan[]; sentences: unknown[]; outputs: Output[]; models?: string[]; config: Config; error?: string; mode?: string; analysis_provider?: string };
-type Bridge = { getState(): string; chooseVideo(): void; saveConfig(json: string): void; testConnection(): void; downloadModel(): void; analyze(json: string): void; solve(json: string): void; render(json: string): void; cancel(): void; saveTranscript(json: string): void; saveOutput(file: string): void; clearCache(): void };
+type State = { status: string; note: string; progress: number; busy: boolean; retryable?: boolean; active_job?: { status: string; action: string; attempt: number }; model_ready: boolean; source?: { name: string; duration_s: number; url: string }; plan: Plan[]; sentences: unknown[]; outputs: Output[]; models?: string[]; config: Config; error?: string; mode?: string; analysis_provider?: string };
+type Bridge = { getState(): string; chooseVideo(): void; saveConfig(json: string): void; testConnection(): void; downloadModel(): void; analyze(json: string): void; solve(json: string): void; render(json: string): void; cancel(): void; retryJob(): void; saveTranscript(json: string): void; saveOutput(file: string): void; clearCache(): void };
 declare global { interface Window { CuplikNative?: Bridge } }
 const empty: State = { status: "idle", note: "Pilih video dari perangkat.", progress: 0, busy: false, model_ready: false, plan: [], sentences: [], outputs: [], config: { provider: "gemini", model: "", consent: false } };
 
@@ -65,7 +65,7 @@ function App() {
       <div className="row"><Button type="submit" disabled={!state.source || !state.model_ready} className="studio-primary">Transkripsi dan susun rencana</Button><Button type="button" disabled={!state.source} onClick={() => analyze(true)}>Susun rencana manual</Button></div>
       {!state.model_ready && <small>Unduh model di Pengaturan untuk memakai transkripsi. Rencana manual dapat dipakai langsung.</small>}
     </fieldset></form></div>
-    <section aria-label="Progres Android"><p>Status: <strong data-testid="android-status">{state.status}</strong></p><Progress value={Math.max(0, Math.min(100, state.progress * 100))} aria-label="Progres video Android" /><p role="status">{state.note}</p>{(error || state.error) && <p role="alert" className="error">{error || state.error}</p>}{state.busy && <Button type="button" onClick={() => run(bridge => bridge.cancel())}>Batalkan proses</Button>}</section>
+    <section aria-label="Progres Android"><p>Status: <strong data-testid="android-status">{state.status}</strong></p><progress max={1} value={state.busy && state.progress <= 0 ? undefined : Math.max(0, Math.min(1, state.progress))} aria-label="Progres video Android" /><p role="status">{state.note}</p>{(error || state.error) && <p role="alert" className="error">{error || state.error}</p>}{state.busy && <Button type="button" disabled={state.active_job?.status === "cancelling"} onClick={() => run(bridge => bridge.cancel())}>{state.active_job?.status === "cancelling" ? "Menunggu pembatalan…" : "Batalkan proses"}</Button>}{state.retryable && <><p>Pekerjaan sebelumnya dapat dicoba ulang dengan sumber dan pengaturan semula. Checkpoint serta hasil selesai akan digunakan kembali.</p><Button type="button" onClick={() => run(bridge => bridge.retryJob())}>Coba ulang pekerjaan sebelumnya</Button></>}</section>
     {state.sentences.length > 0 && <details><summary>Tinjau dan koreksi transkrip</summary><p>Waktu caption berasal dari segmen transkripsi. Periksa kecocokan dengan audio sebelum ekspor.</p><Button type="button" onClick={() => setTranscript(JSON.stringify(state.sentences, null, 2))}>Muat transkrip untuk diedit</Button><label htmlFor="android-transcript">Transkrip JSON</label><textarea id="android-transcript" name="transcript" value={transcript} onChange={e => setTranscript(e.target.value)} /><Button type="button" disabled={state.busy || !transcript} onClick={() => run(bridge => bridge.saveTranscript(transcript))}>Simpan koreksi transkrip</Button></details>}
     {plan.length > 0 && <section><h2>Tinjau pilihan {state.mode === "condense" ? "Ringkas" : "Klip"}</h2><p>{state.analysis_provider === "manual" ? "Pilihan manual; belum dinilai oleh AI." : `Analisis teks oleh ${state.analysis_provider}. Tinjau sumber, konteks dan langkah yang tidak diucapkan.`}</p>
       <form aria-label="Tinjau rencana Android" onSubmit={event => { event.preventDefault(); run(bridge => bridge.render(JSON.stringify({ plan }))); }}><fieldset disabled={state.busy}><legend>Keputusan sebelum ekspor</legend>

@@ -145,6 +145,8 @@ APK Android memakai UI Mantine yang dibundel, Whisper.cpp untuk transkripsi loka
 
 Di aplikasi, buka **Pengaturan API AI dan model transkripsi**, isi kunci milikmu, simpan, lalu **Periksa koneksi dan model**. Pilih model dari daftar akun dan simpan kembali. Aktifkan izin pengiriman teks bila ingin analisis AI. Unduh model transkripsi, pilih video, susun dan tinjau rencana, lalu ekspor serta simpan MP4. Pilihan manual tersedia tanpa API. Cache transkripsi dan hasil ekspor dapat dipakai ulang; pembersihan lokal meminta konfirmasi dan mempertahankan model serta pengaturan AI.
 
+Pekerjaan Android disimpan sebelum layanan mulai. Jika proses sistem terhenti, buka kembali aplikasi dan pilih **Coba ulang pekerjaan sebelumnya**; sumber, pengaturan, checkpoint transkripsi dan ekspor selesai dipakai ulang. Mengubah sumber, transkrip, rencana atau API membatalkan kelayakan retry lama. Pembatalan juga menghentikan komputasi Whisper dan koneksi API yang sedang berjalan.
+
 Untuk build lokal, siapkan JDK 17, Android SDK 36, NDK `27.0.12077973`, CMake `3.22.1`, lalu `make android`. CI membangun APK debug dan menjalankan tes unit, lint serta smoke test transkripsi/render pada emulator. Debug APK untuk pemeriksaan/sideload; signing rilis belum dikonfigurasi. QC Android memeriksa durasi dan keberadaan audio; pengukuran LUFS, vision, serta pelacakan pembicara web belum dipindahkan ke Android. Kualitas model/API dan performa perangkat fisik perlu diukur.
 
 ### Direktori proyek

@@ -6,3 +6,5 @@
 .android-main video { inline-size: 100%; max-block-size: 65dvh; }
 .android-main > section > article { background: var(--bg); }
 .android-main :where(input,select,textarea) { font-size: max(1rem,1em); }
+
+.android-main progress { inline-size: 100%; accent-color: var(--mantine-color-turmeric-5); }

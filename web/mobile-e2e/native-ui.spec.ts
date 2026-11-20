@@ -33,3 +33,23 @@ for (const width of [360, 768]) {
     expect(errors).toEqual([]);
   });
 }
+
+test("retry memakai pekerjaan tersimpan dan pembatalan langsung mengunci kontrol", async ({ page }) => {
+  await page.addInitScript(() => {
+    const state = { status: "interrupted", note: "Layanan sebelumnya terhenti.", busy: false, retryable: true, model_ready: true, progress: 0, plan: [], sentences: [], outputs: [], config: { provider: "gemini", model: "", consent: false }, active_job: { status: "interrupted", action: "analyze", attempt: 1 } };
+    const fixture = window as unknown as { retries: number; cancellations: number; CuplikNative: unknown };
+    fixture.retries = 0; fixture.cancellations = 0;
+    fixture.CuplikNative = {
+      getState: () => JSON.stringify(state),
+      retryJob() { fixture.retries++; state.busy = true; state.retryable = false; state.status = "queued"; state.active_job.status = "queued"; state.active_job.attempt = 2; },
+      cancel() { fixture.cancellations++; state.status = "cancelling"; state.active_job.status = "cancelling"; state.note = "Membatalkan proses."; },
+    };
+  });
+  await page.goto("/assets/www/mobile.html");
+  await page.getByRole("button", { name: "Coba ulang pekerjaan sebelumnya", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Pilih video dari hape", exact: true })).toBeDisabled();
+  await expect(page.getByRole("progressbar", { name: "Progres video Android" })).not.toHaveAttribute("value");
+  await page.getByRole("button", { name: "Batalkan proses", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Menunggu pembatalan…", exact: true })).toBeDisabled();
+  expect(await page.evaluate(() => ({ retries: (window as unknown as { retries: number }).retries, cancellations: (window as unknown as { cancellations: number }).cancellations }))).toEqual({ retries: 1, cancellations: 1 });
+});

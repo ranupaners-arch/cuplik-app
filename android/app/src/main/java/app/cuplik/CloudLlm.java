@@ -9,9 +9,15 @@ import org.json.JSONObject;
 
 final class CloudLlm {
   private final Secrets secrets;
+  private final java.util.function.Consumer<HttpsURLConnection> connections;
 
   CloudLlm(Secrets secrets) {
+    this(secrets, connection -> {});
+  }
+
+  CloudLlm(Secrets secrets, java.util.function.Consumer<HttpsURLConnection> connections) {
     this.secrets = secrets;
+    this.connections = connections;
   }
 
   private JSONObject request(String path, JSONObject body) throws Exception {
@@ -24,6 +30,7 @@ final class CloudLlm {
             ? "https://generativelanguage.googleapis.com/v1beta/"
             : "https://api.anthropic.com/v1/";
     HttpsURLConnection connection = (HttpsURLConnection) new URL(base + path).openConnection();
+    connections.accept(connection);
     connection.setConnectTimeout(20000);
     connection.setReadTimeout(180000);
     connection.setInstanceFollowRedirects(false);
@@ -60,6 +67,7 @@ final class CloudLlm {
       }
     } finally {
       connection.disconnect();
+      connections.accept(null);
     }
   }
 

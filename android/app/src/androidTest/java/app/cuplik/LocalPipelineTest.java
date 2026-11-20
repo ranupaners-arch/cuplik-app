@@ -55,6 +55,8 @@ public class LocalPipelineTest {
       transcript =
           new JSONArray(
               new String(Whisper.transcribe(handle, samples, "en"), StandardCharsets.UTF_8));
+      Whisper.cancel(handle);
+      assertThrows(InterruptedException.class, () -> Whisper.transcribe(handle, samples, "en"));
     } finally {
       Whisper.close(handle);
     }
