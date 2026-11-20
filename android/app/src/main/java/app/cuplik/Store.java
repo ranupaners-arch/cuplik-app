@@ -57,7 +57,9 @@ final class Store {
       }
     }
     try {
-      if (JobJournal.recover(state)) update(s -> {});
+      boolean recovered = JobJournal.recover(state);
+      boolean recoveredProjects = new ProjectLibrary(context).recoverIndex(state);
+      if (ProjectLibrary.syncIndex(state) || recovered || recoveredProjects) update(s -> {});
     } catch (Exception error) {
       throw new IllegalStateException(error);
     }
@@ -81,6 +83,7 @@ final class Store {
     FileOutputStream stream = null;
     try {
       editor.apply(next);
+      ProjectLibrary.syncIndex(next);
       stream = target.startWrite();
       stream.write(next.toString().getBytes(StandardCharsets.UTF_8));
       target.finishWrite(stream);
@@ -160,6 +163,39 @@ final class Store {
           editor.apply(s);
           s.put("input_revision", s.optLong("input_revision") + 1);
         });
+  }
+
+  synchronized void acceptSource(String owner, JSONObject source) {
+    updateJob(owner, s -> new ProjectLibrary(context).acceptSource(s, source));
+  }
+
+  synchronized void saveDraft(JSONArray draft) throws Exception {
+    if (busy()) throw new IllegalStateException("Proses masih berjalan.");
+    JSONObject source = state.optJSONObject("source");
+    if (source == null) return;
+    JSONArray reviewed =
+        Planner.review(
+            state.getJSONArray("plan"),
+            draft,
+            state.optString("mode", "clips"),
+            source.getDouble("duration_s"));
+    if (!reviewed.toString().equals(state.getJSONArray("plan").toString()))
+      editInputs(s -> s.put("plan", reviewed));
+  }
+
+  synchronized void openProject(String id, JSONArray draft) {
+    editInputs(s -> new ProjectLibrary(context).open(s, id, draft));
+  }
+
+  synchronized void renameProject(String name) {
+    String title = name.trim();
+    if (title.isEmpty()
+        || title.length() > 80
+        || title.codePoints().anyMatch(Character::isISOControl))
+      throw new IllegalArgumentException("Nama proyek harus 1–80 karakter tanpa karakter kontrol.");
+    if (state.optJSONObject("source") == null)
+      throw new IllegalStateException("Pilih video terlebih dahulu.");
+    editInputs(s -> s.put("project_name", title));
   }
 
   File media(String name) {

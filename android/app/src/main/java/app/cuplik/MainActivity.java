@@ -206,8 +206,13 @@ public final class MainActivity extends ComponentActivity {
     }
 
     @JavascriptInterface
-    public void chooseVideo() {
-      if (store.busy()) return;
+    public void chooseVideo(String plan) {
+      try {
+        store.saveDraft(new JSONArray(plan));
+      } catch (Exception failure) {
+        error(failure);
+        return;
+      }
       runOnUiThread(
           () ->
               startActivityForResult(
@@ -280,6 +285,25 @@ public final class MainActivity extends ComponentActivity {
     }
 
     @JavascriptInterface
+    public void openProject(String json) {
+      try {
+        JSONObject options = new JSONObject(json);
+        store.openProject(options.getString("id"), options.getJSONArray("plan"));
+      } catch (Exception failure) {
+        error(failure);
+      }
+    }
+
+    @JavascriptInterface
+    public void renameProject(String name) {
+      try {
+        store.renameProject(name);
+      } catch (Exception failure) {
+        error(failure);
+      }
+    }
+
+    @JavascriptInterface
     public void clearCache() {
       if (store.busy()) return;
       runOnUiThread(
@@ -287,9 +311,9 @@ public final class MainActivity extends ComponentActivity {
               new android.app.AlertDialog.Builder(MainActivity.this)
                   .setTitle("Bersihkan video lokal?")
                   .setMessage(
-                      "Video sumber salinan, transkrip dan hasil dalam aplikasi akan dihapus."
-                          + " Simpan MP4 ke perangkat terlebih dahulu. Model dan pengaturan AI"
-                          + " tetap disimpan.")
+                      "Semua proyek, video sumber salinan, transkrip dan hasil dalam aplikasi akan"
+                          + " dihapus. Simpan MP4 ke perangkat terlebih dahulu. Model dan"
+                          + " pengaturan AI tetap disimpan.")
                   .setNegativeButton("Batal", null)
                   .setPositiveButton(
                       "Hapus data lokal",
@@ -305,8 +329,12 @@ public final class MainActivity extends ComponentActivity {
                                 if (!file.delete())
                                   throw new IllegalStateException(
                                       "Sebagian cache belum dapat dihapus; coba ulang.");
+                            new ProjectLibrary(MainActivity.this).clear();
                             store.editInputs(
                                 s -> {
+                                  s.remove("active_project");
+                                  s.remove("project_name");
+                                  s.put("projects", new JSONArray());
                                   s.remove("source");
                                   s.remove("settings");
                                   s.put("plan", new JSONArray());
