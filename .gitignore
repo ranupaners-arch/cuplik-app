@@ -23,3 +23,9 @@ android/app/src/main/assets/THIRD_PARTY_NOTICES.txt
 android/app/src/main/assets/whisper-LICENSE.txt
 android/app/src/androidTest/assets/*.mp4
 android/app/src/androidTest/assets/*.bin
+
+# Signing keys and passwords stay outside the repository.
+*.keystore
+*.jks
+*.p12
+android/signing.properties

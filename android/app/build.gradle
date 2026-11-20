@@ -8,13 +8,29 @@ android {
         applicationId 'app.cuplik'
         minSdk 29
         targetSdk 36
-        versionCode 4
-        versionName '0.4.0'
+        versionCode 5
+        versionName '0.5.0'
         ndk { abiFilters 'arm64-v8a', 'x86_64' }
         externalNativeBuild { cmake { cppFlags '-std=c++17'; arguments '-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON' } }
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
     }
-    buildTypes { release { minifyEnabled false } }
+    signingConfigs {
+        stableRelease {
+            def keyPath = System.getenv('CUPLIK_SIGNING_STORE')
+            if (keyPath) {
+                storeFile file(keyPath)
+                storePassword System.getenv('CUPLIK_SIGNING_PASSWORD')
+                keyAlias 'cuplik'
+                keyPassword System.getenv('CUPLIK_SIGNING_PASSWORD')
+            }
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            if (System.getenv('CUPLIK_SIGNING_STORE')) signingConfig signingConfigs.stableRelease
+        }
+    }
     compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17; coreLibraryDesugaringEnabled true }
     externalNativeBuild { cmake { path file('src/main/cpp/CMakeLists.txt'); version '3.22.1' } }
     packaging { resources { excludes += '/META-INF/{AL2.0,LGPL2.1}' } }
