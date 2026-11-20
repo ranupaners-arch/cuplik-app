@@ -265,12 +265,28 @@ public final class ProcessingService extends Service {
               duration,
               "url",
               "https://appassets.androidplatform.net/media/" + file.getName());
+      source.put("width", dimension(metadata, MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH));
+      source.put("height", dimension(metadata, MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT));
+      int rotation = dimension(metadata, MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION);
+      if (rotation == 90 || rotation == 270) {
+        int width = source.optInt("width");
+        source.put("width", source.optInt("height"));
+        source.put("height", width);
+      }
       store.acceptSource(jobId, source);
     } catch (Exception error) {
       file.delete();
       throw error;
     } finally {
       metadata.release();
+    }
+  }
+
+  private static int dimension(MediaMetadataRetriever metadata, int key) {
+    try {
+      return Math.max(0, Integer.parseInt(metadata.extractMetadata(key)));
+    } catch (RuntimeException unavailable) {
+      return 0;
     }
   }
 

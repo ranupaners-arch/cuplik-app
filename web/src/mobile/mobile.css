@@ -3,7 +3,7 @@
 .android-dot { color: var(--brand); }
 .android-main .create-grid > section { margin-block: .5rem; }
 .android-main .create-grid > form { min-inline-size: 0; }
-.android-main video { inline-size: 100%; max-block-size: 65dvh; }
+.android-main video { inline-size: min(100%, calc(65dvh * var(--video-ratio, 1.777778))); max-inline-size: 100%; max-block-size: 65dvh; aspect-ratio: auto; }
 .android-main > section > article { background: var(--bg); }
 .android-main :where(input,select,textarea) { font-size: max(1rem,1em); }
 
