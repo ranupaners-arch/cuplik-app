@@ -43,8 +43,16 @@ def test_versioned_artifact_records_commit_and_certificate(tmp_path):
     assert (output / f"{apk.name}.sha256").read_text().startswith(info["sha256"])
 
 
-@pytest.mark.parametrize("asset", ["assets/ggml-tiny.bin", "assets/source.mp4", "assets/key.p12"])
+@pytest.mark.parametrize(
+    "asset",
+    ["assets/ggml-tiny.bin", "assets/source.mp4", "assets/key.p12", "assets/DebugProbesKt.bin"],
+)
 def test_model_test_media_and_private_keys_cannot_ship(tmp_path, asset):
     source, certificate = build(tmp_path, [asset])
     with pytest.raises(ValueError, match="private key, model or test media"):
         package(source, tmp_path / "output", certificate)
+
+
+def test_kotlin_runtime_probe_is_not_mistaken_for_a_model(tmp_path):
+    source, certificate = build(tmp_path, ["DebugProbesKt.bin"])
+    assert package(source, tmp_path / "output", certificate).is_file()
