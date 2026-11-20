@@ -12,8 +12,7 @@ help:
 	  '  make build           Build produksi web' \
 	  '  make sample          Buat video sintetis untuk uji unggah' \
 	  '  make types           Perbarui OpenAPI dan tipe frontend' \
-	  '  make eval            Evaluasi dataset beranotasi jika tersedia' \
-	  '  Panduan tinjauan: docs/quick-review.md'
+	  '  make eval            Evaluasi dataset beranotasi jika tersedia'
 doctor:
 	python3 scripts/check_setup.py
 install:

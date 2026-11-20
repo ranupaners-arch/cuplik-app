@@ -521,6 +521,23 @@ export interface paths {
         patch: operations["patch_beat_api_beats__beat_id__patch"];
         trace?: never;
     };
+    "/api/outputs/{output_id}/coherence": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Coherence Report */
+        get: operations["coherence_report_api_outputs__output_id__coherence_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/llm/sample": {
         parameters: {
             query?: never;
@@ -828,6 +845,11 @@ export interface components {
              * @default false
              */
             locked: boolean;
+            /**
+             * Timelapse Approved
+             * @default false
+             */
+            timelapse_approved: boolean;
         };
         /** BeatPatch */
         BeatPatch: {
@@ -846,6 +868,8 @@ export interface components {
              * @default true
              */
             locked: boolean;
+            /** Timelapse Approved */
+            timelapse_approved?: boolean | null;
         };
         /** Chapter */
         Chapter: {
@@ -1036,6 +1060,61 @@ export interface components {
             /** Thumbnail Url */
             thumbnail_url?: string | null;
         };
+        /** CoherenceIssue */
+        CoherenceIssue: {
+            /** At Id */
+            at_id: string;
+            /**
+             * Type
+             * @enum {string}
+             */
+            type: "dangling_reference" | "missing_prerequisite" | "abrupt_jump";
+            /**
+             * Fix
+             * @enum {string}
+             */
+            fix: "restore" | "review";
+            /** Restore Ids */
+            restore_ids?: string[];
+            /** Note */
+            note: string;
+        };
+        /** CoherenceReport */
+        CoherenceReport: {
+            /**
+             * Version
+             * @default 1
+             */
+            version: number;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "passed" | "needs_review";
+            /**
+             * Stale
+             * @default false
+             */
+            stale: boolean;
+            /** Provider */
+            provider: string;
+            /** Model */
+            model: string;
+            /** Rounds */
+            rounds: number;
+            /** Plan Fingerprint */
+            plan_fingerprint: string;
+            /** Issues */
+            issues: components["schemas"]["CoherenceIssue"][];
+            /** Restored Ids */
+            restored_ids: string[];
+            /** Dropped Ids */
+            dropped_ids: string[];
+            /** Note */
+            note: string;
+            /** Min Duration S */
+            min_duration_s?: number | null;
+        };
         /** CondenseVisionSettings */
         CondenseVisionSettings: {
             /**
@@ -1088,6 +1167,16 @@ export interface components {
         };
         /** OutlineReview */
         OutlineReview: {
+            /** Coherence Enabled */
+            coherence_enabled?: boolean | null;
+            /** Chapter Cards */
+            chapter_cards?: boolean | null;
+            /** Timelapse Enabled */
+            timelapse_enabled?: boolean | null;
+            /** Max Visual Speed */
+            max_visual_speed?: number | null;
+            /** Max Speech Speed */
+            max_speech_speed?: number | null;
             /** Chapters */
             chapters: components["schemas"]["ChapterChoice"][];
             /** Target Seconds */
@@ -1168,6 +1257,7 @@ export interface components {
             transcript: components["schemas"]["Transcript"] | null;
             chapter_export?: components["schemas"]["ChapterExport"] | null;
             vision_report?: components["schemas"]["VisionReport"] | null;
+            coherence_report?: components["schemas"]["CoherenceReport"] | null;
         };
         /** OutputPreferences */
         OutputPreferences: {
@@ -1207,6 +1297,26 @@ export interface components {
              * @default 1.15
              */
             max_speech_speed: number;
+            /**
+             * Timelapse Enabled
+             * @default false
+             */
+            timelapse_enabled: boolean;
+            /**
+             * Max Visual Speed
+             * @default 8
+             */
+            max_visual_speed: number;
+            /**
+             * Coherence Enabled
+             * @default false
+             */
+            coherence_enabled: boolean;
+            /**
+             * Chapter Cards
+             * @default false
+             */
+            chapter_cards: boolean;
             /**
              * Focus
              * @default
@@ -1266,6 +1376,26 @@ export interface components {
              * @default 1.15
              */
             max_speech_speed: number;
+            /**
+             * Timelapse Enabled
+             * @default false
+             */
+            timelapse_enabled: boolean;
+            /**
+             * Max Visual Speed
+             * @default 8
+             */
+            max_visual_speed: number;
+            /**
+             * Coherence Enabled
+             * @default false
+             */
+            coherence_enabled: boolean;
+            /**
+             * Chapter Cards
+             * @default false
+             */
+            chapter_cards: boolean;
             /**
              * Focus
              * @default
@@ -1539,6 +1669,16 @@ export interface components {
         };
         /** SolveRequest */
         SolveRequest: {
+            /** Coherence Enabled */
+            coherence_enabled?: boolean | null;
+            /** Chapter Cards */
+            chapter_cards?: boolean | null;
+            /** Timelapse Enabled */
+            timelapse_enabled?: boolean | null;
+            /** Max Visual Speed */
+            max_visual_speed?: number | null;
+            /** Max Speech Speed */
+            max_speech_speed?: number | null;
             /** Target Seconds */
             target_seconds: number;
             /** Chapters */
@@ -2815,6 +2955,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Beat"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    coherence_report_api_outputs__output_id__coherence_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                output_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CoherenceReport"];
                 };
             };
             /** @description Validation Error */

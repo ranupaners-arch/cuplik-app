@@ -6,6 +6,7 @@ import { api, post, uploadVideo, type Output, type RuntimeConfig, type Transcrip
 
 import { ClipControls, controlValues } from "@/components/clip-controls";
 import { CondenseVisionControls } from "@/components/condense-vision-controls";
+import { CondenseTimingControls } from "@/components/condense-timing-controls";
 
 export function CreateForm({ projectId }: { projectId?: string }) {
   const [source, setSource] = useState("demo");
@@ -88,6 +89,7 @@ export function CreateForm({ projectId }: { projectId?: string }) {
           <label>Fokus Ringkas<textarea maxLength={1000} value={condenseSettings.focus ?? ""} onChange={e => updateCondense({ focus: e.target.value })} /></label>
           <label><input type="checkbox" checked={condenseSettings.captions ?? true} onChange={e => updateCondense({ captions: e.target.checked })} />Caption Ringkas</label>
           <CondenseVisionControls value={condenseSettings.condense_vision ?? { enabled: false, screen_tutorial: false, max_frames: 720 }} onChange={value => updateCondense({ condense_vision: value })} />
+          <CondenseTimingControls value={condenseSettings} onChange={updateCondense} />
         </>}
         <button type="submit">{busy ? "Mengirim…" : projectId ? "Buat output dari proyek ini" : "Mulai proses"}</button>
       </fieldset>

@@ -16,7 +16,7 @@ make dev
 
 Buka **http://localhost:3000**, API interaktif **http://localhost:8000/docs**. `make dev` menjalankan Redis pada 6386, migrasi SQLite, FastAPI, satu worker RQ, dan Next.js. Ctrl+C menghentikan proses yang dibuat supervisor. Port yang sudah dipakai ditolak; proses lain tidak dihentikan.
 
-`make` atau `make help` menampilkan daftar perintah. `make doctor` memeriksa setup native secara lokal tanpa menjalankan aplikasi, mengunduh model, atau merender video. Untuk meninjau hasil yang sudah ada, gunakan [panduan pemeriksaan singkat](docs/quick-review.md).
+`make` atau `make help` menampilkan daftar perintah. `make doctor` memeriksa setup native secara lokal tanpa menjalankan aplikasi, mengunduh model, atau merender video.
 
 ## Coba dari awal sampai akhir
 
@@ -26,11 +26,15 @@ Buka **http://localhost:3000**, API interaktif **http://localhost:8000/docs**. `
 4. Buka output Ringkas melalui Riwayat. Tinjau bab wajib, coba target 3 detik untuk melihat penolakan durasi, lalu gunakan 20 detik dan setujui render.
 5. Buat output lain dari halaman proyek untuk memakai ulang sumber dan transkrip yang sama.
 
-Pada hasil Ringkas, buka **Daftar bab dan unduhan** untuk mengambil indeks TXT serta laporan JSON. Timestamp output baru mengikuti durasi segmen encode. Versi teks YouTube tersedia hanya jika pemeriksaan format lolos; demo pendek tetap memiliki indeks tinjauan. Detail: [review daftar bab Ringkas](docs/ringkas-chapters-review.md).
+Pada hasil Ringkas, buka **Daftar bab dan unduhan** untuk mengambil indeks TXT serta laporan JSON. Timestamp output baru mengikuti durasi segmen encode. Versi teks YouTube tersedia hanya jika pemeriksaan format lolos; demo pendek tetap memiliki indeks tinjauan.
 
-Ringkas juga dapat memakai **Transkrip dan frame (vision)** pada form Buat. Pilih ukuran sampel dan batas frame; setelah outline siap, buka **Bukti visual Ringkas** serta **Keputusan per beat**. Demonstrasi di sela narasi ikut menjadi beat visual, dengan audio tetap dipertahankan. Adaptor mendukung model gambar provider yang dikonfigurasi melalui `LLM_MODEL_VISION` (kosong memakai model teks); mode bawaan tetap transkrip. [Panduan vision Ringkas](docs/ringkas-vision-review.md) menjelaskan cache, spesifikasi wajib dan batas pengukurannya.
+Ringkas juga dapat memakai **Transkrip dan frame (vision)** pada form Buat. Pilih ukuran sampel dan batas frame; setelah outline siap, buka **Bukti visual Ringkas** serta **Keputusan per beat**. Demonstrasi di sela narasi ikut menjadi beat visual, dengan audio tetap dipertahankan. Adaptor mendukung model gambar provider yang dikonfigurasi melalui `LLM_MODEL_VISION` (kosong memakai model teks); mode bawaan tetap transkrip.
 
-Untuk menyiapkan dataset kualitas, pilih mode **Siapkan sumber untuk anotasi** pada halaman Buat. Setelah transkrip siap, buka `/projects/<id>/evaluate`, tandai momen atau bab/spesifikasi wajib, simpan draft, lalu konfirmasikan tinjauan manual untuk ekspor. Pemilihan LLM belum dijalankan pada mode ini. [Panduan anotasi dan fokus video](docs/annotation-vision-review.md) menjelaskan revisi, paket evaluasi dan pengecualian kualitas.
+Untuk memperpendek pengerjaan visual, aktifkan timelapse pada kontrol kecepatan, tinjau sumber, lalu setujui beat manual/idle/repeat yang sesuai. Tekan **Hitung durasi tanpa render** untuk menerapkan batas dan melihat rencana. Timelapse 2–8× mengganti audio bagian tersebut dengan hening serta menampilkan penanda kecepatan. Spesifikasi dan hasil dilindungi; narasi mengikuti batas tersendiri.
+
+Ringkas juga menyediakan **Periksa koherensi sebelum render** dan **Tampilkan judul bab selama dua detik**, keduanya nonaktif secara bawaan. Pemeriksaan LLM memakai maksimal dua putaran per persetujuan dan cache. Pemulihan konteks menghitung ulang durasi lalu kembali ke tinjauan; masalah yang belum selesai atau konteks terkunci perlu keputusan pengguna. Laporan menandai perubahan rencana setelah pemeriksaan. Judul bab tampil sebagai overlay singkat, tanpa menambah durasi atau mengubah audio. Provider mock hanya memverifikasi alur, bukan kualitas koherensi.
+
+Untuk menyiapkan dataset kualitas, pilih mode **Siapkan sumber untuk anotasi** pada halaman Buat. Setelah transkrip siap, buka `/projects/<id>/evaluate`, tandai momen atau bab/spesifikasi wajib, simpan draft, lalu konfirmasikan tinjauan manual untuk ekspor. Pemilihan LLM belum dijalankan pada mode ini.
 
 Pada kontrol Klip, **Fokus visual** menawarkan mode aman, aktivitas eksperimental, atau area manual dalam persen sumber. Gunakan preview untuk memeriksa detail tugas; proposal aktivitas kembali ke bingkai utuh saat ambigu dan belum mengenali tangan/objek secara semantik.
 
@@ -85,7 +89,7 @@ Di **Preferensi**, tambahkan glosarium satu kata (misalnya `nahu → nahwu`). Pi
 
 Audio disimpan sebagai WAV 16 kHz mono. Default checkpoint setiap 60 detik (`WHISPER_CHUNK_SECONDS`); penghentian proses hanya mengulang bagian yang belum selesai. Filter VAD/no-speech dan pengulangan mencatat keputusan pada `data/projects/<id>/transcription/report.json`.
 
-`faster-whisper==1.2.1` dibatasi ke **PyAV <19** karena PyAV 19 menghapus argumen yang masih dipakai rilis tersebut. Perbaikan dan hasil uji nyata dicatat dalam [review Fase 1](docs/phase-1-review.md).
+`faster-whisper==1.2.1` dibatasi ke **PyAV <19** karena PyAV 19 menghapus argumen yang masih dipakai rilis tersebut.
 
 Whisper mengunduh bobot ketika pertama dipakai. Default `small` dipilih untuk percobaan awal pada CPU; model/device/compute type dapat diubah dalam `.env`. `uv sync` tanpa extra mengembalikan dependensi minimum. Demo dan sidecar tetap berjalan tanpa bobot AI lokal.
 
@@ -126,7 +130,7 @@ Untuk E2E, pasang browser dengan `cd web && npx playwright install chromium` bil
 ## Batas fondasi
 
 - Klip memakai Moment IQ, tiga prompt produksi, batas timestamp kata, pembatas keragaman topik, serta pelacakan YuNet per frame. Caption ringkas/karaoke mengikuti peta waktu retensi. Rekaman layar tetap utuh; kehilangan target pada potret memakai latar blur. Teknik retensi dapat diubah per klip.
-- Ringkas menyediakan analisis frame opsional di samping transkrip, label beat dan bukti gambar untuk tinjauan. Masih memerlukan transkrip minimal satu kalimat. Timelapse dan koherensi LLM belum tersedia; solver menjaga bab wajib/beat terkunci dan menampilkan hasil yang lebih pendek dari target secara eksplisit.
+- Ringkas menyediakan analisis frame opsional, label beat, bukti gambar, timelapse dengan persetujuan per beat, pemeriksaan koherensi naskah, dan overlay judul bab. Masih memerlukan transkrip minimal satu kalimat. Pemeriksaan konteks memakai jendela terbatas dan belum membuktikan kualitas model nyata; solver menjaga bab wajib/beat terkunci dan menampilkan deviasi target secara eksplisit.
 - Batas tinggi ekspor default 1280px, mengikuti ukuran sumber. Audio dinormalisasi dua lintasan menuju −14 LUFS; QC mengukur durasi, gambar hitam, hening, loudness/peak dan caption pada MP4 akhir. Thumbnail dan rincian QC tersedia pada hasil. Klip yang memerlukan tinjauan tetap dapat diunduh.
 - Akurasi Whisper, benchmark satu jam pada hardware target, dan kualitas golden set manusia belum diklaim tercapai.
 - Maksimal tiga klip dari output terbaru yang diberi suka menjadi contoh pencarian momen berikutnya. Koreksi caption tidak mengubah timestamp.
@@ -146,8 +150,8 @@ Untuk E2E, pasang browser dengan `cd web && npx playwright install chromium` bil
 | `02-design-system/` | Token dan prototipe asli, tetap terpisah |
 | `03-prompts/` | Library prompt dan rencana asli |
 
-Keputusan dan perbedaan terhadap blueprint: [engineering.md](docs/engineering.md). Rencana per fase: [cuplik-claude-code-build.md](cuplik-claude-code-build.md). Kontrol Klip tercatat pada [review Fase 4](docs/phase-4-review.md). Checkpoint Fase 5: [daftar bab Ringkas](docs/ringkas-chapters-review.md), [anotasi dan fokus spasial](docs/annotation-vision-review.md), [beat visual dan vision Ringkas](docs/ringkas-vision-review.md); keseluruhan Fase 5 belum selesai. Gate benchmark Mac/video 60 menit, sinkron ucapan manual, dan kualitas golden set masih terbuka. [Riset video pendek/tutorial](docs/research-short-tutorial-2026-11-19.md), [Fase 3](docs/phase-3-review.md), [Fase 2](docs/phase-2-review.md), [Fase 1](docs/phase-1-review.md) dan [Fase 0](docs/phase-0-review.md) tersedia sebagai referensi.
+Keputusan teknologi: [engineering.md](docs/engineering.md). Rencana per fase: [cuplik-claude-code-build.md](cuplik-claude-code-build.md). Referensi produk: [riset video pendek/tutorial](docs/research-short-tutorial-2026-11-19.md). Fase 5 masih menyisakan QC Ringkas serta pengukuran kualitas dan performa.
 
-Hasil review Fase 2 telah ditindaklanjuti melalui [perbaikan caption dan pembingkaian](docs/adaptive-render-review.md), termasuk tiga contoh render baru. Jalankan ulang aplikasi, lalu gunakan **Perbarui video klip** pada hasil lama. Pengaturan `.env` lama `RENDER_HEIGHT=640` dapat dinaikkan menjadi 1280.
+Untuk memperbarui klip lama, jalankan ulang aplikasi lalu gunakan kontrol render ulang. Pengaturan `.env` lama `RENDER_HEIGHT=640` dapat dinaikkan menjadi 1280.
 
 Salinan `source.mp4` yang tidak dipakai selama 14 hari dibersihkan otomatis (`SOURCE_CACHE_DAYS`). Unggahan asli, audio, transkrip dan hasil tetap disimpan; sumber yang kedaluwarsa dipulihkan saat diperlukan. Sumber URL dapat memerlukan unduhan ulang. Detail perlindungan task/lock dan batas kebijakan ini ada pada review Fase 4.

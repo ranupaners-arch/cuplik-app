@@ -63,11 +63,20 @@ test("sample LLM, kedua mode, progres tersimpan, koreksi caption, dan unduh", as
   await page.getByRole("button", { name: "Setujui bab dan render Ringkas" }).click();
   await expect(page.getByRole("alert").filter({ hasText: "Durasi minimum" })).toBeVisible();
   await page.getByLabel("Target durasi (detik)").fill("20");
+  await page.getByLabel("Periksa koherensi sebelum render", { exact: true }).check();
+  await page.getByLabel("Tampilkan judul bab selama dua detik", { exact: true }).check();
+  await expect(page.getByTestId("output-status")).toHaveText("awaiting_review");
   await page.getByRole("button", { name: "Hitung durasi tanpa render" }).click();
   await expect(page.getByText(/Rencana hasil:/)).toBeVisible();
   await page.getByRole("button", { name: "Setujui bab dan render Ringkas" }).click();
   await expect(page.getByTestId("output-status")).toHaveText("done", { timeout: 90000 });
   await expect(page.getByRole("link", { name: "Unduh ringkasan MP4" })).toBeVisible();
+  const coherence = await (await request.get(`/api${condensedHref}/coherence`)).json();
+  expect(coherence.status).toBe("passed");
+  expect(coherence.provider).toBe("mock");
+  expect(coherence.stale).toBe(false);
+  await page.getByText("Pemeriksaan koherensi Ringkas", { exact: true }).click();
+  await expect(page.getByText("Hasil fixture untuk menguji alur; kualitas koherensi belum dinilai oleh model nyata.", { exact: true })).toBeVisible();
   const chapterSummary = page.getByText("Daftar bab dan unduhan", { exact: true });
   await chapterSummary.focus();
   await page.keyboard.press("Enter");
@@ -265,7 +274,7 @@ test("anotasi sumber sebelum AI, ekspor, konflik revisi, dan crop manual Shorts"
   expect(browserErrors).toEqual([]);
 });
 
-test("Ringkas vision mempertahankan demonstrasi di sela narasi dan bukti frame", async ({ page, request }) => {
+test("Ringkas vision, tinjauan timelapse, audio hening dan bukti frame", async ({ page, request }) => {
   const browserErrors: string[] = [];
   page.on("pageerror", e => browserErrors.push(e.message));
   execFileSync("../.venv/bin/python", ["../scripts/make_sample.py"]);
@@ -304,10 +313,20 @@ test("Ringkas vision mempertahankan demonstrasi di sela narasi dan bukti frame",
   await decision.selectOption("keep");
   await page.getByRole("button", { name: `Buka kunci ${visual.evidence.id}`, exact: true }).click();
   await expect(page.getByRole("button", { name: `Buka kunci ${visual.evidence.id}`, exact: true })).toHaveCount(0);
+  const target = duration - (visual.end_s - visual.start_s) * .75;
+  await page.getByLabel("Aktifkan timelapse visual yang sudah ditinjau", { exact: true }).check();
+  await page.getByLabel(`Saya sudah meninjau ${visual.evidence.id}: izinkan timelapse dan audio hening`, { exact: true }).check();
+  await page.getByLabel("Target durasi (detik)", { exact: true }).fill(String(target));
+  await page.getByRole("button", { name: "Hitung durasi tanpa render", exact: true }).click();
+  await expect.poll(async () => {
+    const value = await (await request.get(endpoint)).json();
+    return value.output.settings.timelapse_enabled && value.beats.find((b: { id: string }) => b.id === visual.id).speed === 4;
+  }).toBe(true);
+  await decision.selectOption("speed:4");
   await page.getByRole("button", { name: "Setujui bab dan render Ringkas", exact: true }).click();
   await expect(page.getByTestId("output-status")).toHaveText("done", { timeout: 90000 });
   const fresh = await (await request.get(endpoint)).json();
-  expect(Math.abs(fresh.output.actual_duration_s-duration)).toBeLessThan(.3);
+  expect(Math.abs(fresh.output.actual_duration_s-target)).toBeLessThan(.3);
   expect(fresh.vision_report.frame_count).toBe(detail.vision_report.frame_count);
   await expect(page.getByRole("link", { name: "Unduh ringkasan MP4", exact: true })).toBeVisible();
   expect(browserErrors).toEqual([]);
