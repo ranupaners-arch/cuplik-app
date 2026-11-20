@@ -67,10 +67,10 @@ public class StoreRecoveryTest {
     File state = new File(context.getFilesDir(), "state.json"),
         backup = new File(context.getFilesDir(), "state.json.bak");
     assertTrue(state.renameTo(backup));
-    Files.writeString(state.toPath(), "broken write");
+    Files.write(state.toPath(), "broken write".getBytes(java.nio.charset.StandardCharsets.UTF_8));
     assertEquals("recover from backup", new Store(context).state().getString("note"));
     Files.write(store.media("export-keep.mp4").toPath(), new byte[] {1});
-    Files.writeString(state.toPath(), "invalid JSON");
+    Files.write(state.toPath(), "invalid JSON".getBytes(java.nio.charset.StandardCharsets.UTF_8));
     Store fresh = new Store(context);
     assertTrue(fresh.media("export-keep.mp4").exists());
     assertEquals(
