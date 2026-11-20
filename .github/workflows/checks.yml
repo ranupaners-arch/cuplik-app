@@ -4,6 +4,11 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+    inputs:
+      build_signed_apk:
+        description: Build a signed APK after all validation succeeds (owner only)
+        type: boolean
+        default: false
 permissions:
   contents: read
 concurrency:
@@ -11,7 +16,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   web:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
@@ -23,7 +28,9 @@ jobs:
           node-version-file: .node-version
           cache: npm
           cache-dependency-path: web/package-lock.json
-      - run: sudo apt-get update && sudo apt-get install -y ffmpeg redis-server
+      - name: Ensure media tools
+        timeout-minutes: 9
+        run: bash scripts/ci_system_packages.sh ffmpeg redis-server
       - run: make install
       - run: make lint test build
       - run: make eval eval-fixtures
@@ -78,6 +85,9 @@ jobs:
           ffmpeg -v error -y -f lavfi -i testsrc2=size=320x180:rate=24:duration=8 -i /tmp/cuplik-speech.wav -af apad -t 8 -c:v libx264 -pix_fmt yuv420p -c:a aac android/app/src/androidTest/assets/source.mp4
           curl --fail --location --retry 3 https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.bin -o android/app/src/androidTest/assets/ggml-tiny.bin
           echo 'be07e048e1e599ad46341c8d2a135645097a538221678b7acdd1b1919c6e1b21  android/app/src/androidTest/assets/ggml-tiny.bin' | sha256sum --check
+      - name: Compile instrumentation before starting emulator
+        run: ./gradlew assembleDebugAndroidTest --no-daemon
+        working-directory: android
       - name: Enable emulator acceleration
         run: sudo chmod 666 /dev/kvm
       - uses: reactivecircus/android-emulator-runner@v2
@@ -97,15 +107,86 @@ jobs:
         with:
           name: android-failure-reports
           path: android/app/build/reports
+  signed-apk:
+    if: github.event_name == 'workflow_dispatch' && inputs.build_signed_apk && github.actor == github.repository_owner
+    needs: [web, android]
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment: android-signing
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: true
+      - uses: actions/checkout@v4
+        with:
+          repository: ggml-org/whisper.cpp
+          ref: d1be6fde11ac6e0407606b4e42fe72d34add8037
+          path: android/third_party/whisper.cpp
+          persist-credentials: false
+      - run: sdkmanager "platforms;android-36" "build-tools;35.0.0" "ndk;27.0.12077973" "cmake;3.22.1"
+      - run: npm ci --prefix web
+      - run: npm run build:android-ui --prefix web
+      - run: cp android/third_party/whisper.cpp/LICENSE android/app/src/main/assets/whisper-LICENSE.txt
+      - name: Build and verify stable signed APK
+        env:
+          KEYSTORE_BASE64: ${{ secrets.CUPLIK_ANDROID_KEYSTORE }}
+          CUPLIK_SIGNING_PASSWORD: ${{ secrets.CUPLIK_ANDROID_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          signing_path="$RUNNER_TEMP/cuplik-signing.p12"
+          trap 'rm -f "$signing_path"' EXIT
+          test -n "$KEYSTORE_BASE64"
+          test -n "$CUPLIK_SIGNING_PASSWORD"
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$signing_path"
+          unset KEYSTORE_BASE64
+          export CUPLIK_SIGNING_STORE="$signing_path"
+          cd android
+          ./gradlew assembleRelease lintRelease --no-daemon
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs app/build/outputs/apk/release/app-release.apk > "$RUNNER_TEMP/cuplik-cert.txt"
+          expected=$(tr -d '\r\n' < signing-cert.sha256)
+          actual=$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' "$RUNNER_TEMP/cuplik-cert.txt")
+          test "$actual" = "$expected"
+          "$ANDROID_HOME/build-tools/35.0.0/zipalign" -c -P 16 4 app/build/outputs/apk/release/app-release.apk
+          cd ..
+          python3 scripts/package_android.py --build android/app/build/outputs/apk/release --output artifacts/android --certificate android/signing-cert.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cuplik-android-signed
+          path: artifacts/android/
+          if-no-files-found: error
   foundation:
     if: always()
-    needs: [web, android]
+    needs: [web, android, signed-apk]
     runs-on: ubuntu-latest
     steps:
       - name: Require all checks
         env:
           WEB_RESULT: ${{ needs.web.result }}
           ANDROID_RESULT: ${{ needs.android.result }}
+          SIGNING_RESULT: ${{ needs.signed-apk.result }}
+          SIGNING_REQUESTED: ${{ inputs.build_signed_apk || false }}
         run: |
           test "$WEB_RESULT" = success
           test "$ANDROID_RESULT" = success
+          if [ "$SIGNING_REQUESTED" = true ]; then
+            test "$SIGNING_RESULT" = success
+          else
+            test "$SIGNING_RESULT" = skipped
+          fi
