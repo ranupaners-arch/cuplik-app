@@ -25,9 +25,13 @@ for (const width of [360, 768]) {
     const reads = await page.evaluate(() => (window as unknown as { nativeReads: number }).nativeReads);
     await expect.poll(() => page.evaluate(() => (window as unknown as { nativeReads: number }).nativeReads)).toBeGreaterThan(reads);
     await expect(page.getByLabel("Awal p1 (detik)", { exact: true })).toHaveValue("1");
+    await page.getByLabel("Bingkai hasil", { exact: true }).selectOption("portrait");
+    await page.getByLabel("Caption frasa pendek", { exact: true }).uncheck();
     await page.getByRole("button", { name: "Setujui dan ekspor di hape", exact: true }).click();
-    const calls = await page.evaluate(() => (window as unknown as { nativeCalls: { name: string; value: { plan?: { start_s: number }[]; consent?: boolean } }[] }).nativeCalls);
+    const calls = await page.evaluate(() => (window as unknown as { nativeCalls: { name: string; value: { plan?: { start_s: number }[]; consent?: boolean; layout?: string; captions?: boolean } }[] }).nativeCalls);
     expect(calls.find(call => call.name === "render")?.value.plan?.[0].start_s).toBe(1);
+    expect(calls.find(call => call.name === "render")?.value.layout).toBe("portrait");
+    expect(calls.find(call => call.name === "render")?.value.captions).toBe(false);
     expect(calls.find(call => call.name === "saveConfig")?.value.consent).toBe(true);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
     expect(errors).toEqual([]);
